@@ -2,18 +2,18 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Rule Syntax Reference: lines 522–550
-- Entity Config Schema (rules, thresholds): lines 280–452
-- Defaults block: lines 454–470
-- Thresholds sugar: lines 472–495
-- Focus mode: lines 328–332
-- Solver pipeline step 1: lines 649–661
-- Glyph "entity" resolution: lines 563–567
+- Rule Syntax Reference: (anchor: rule-syntax)
+- Entity Config Schema (rules, thresholds): (anchor: entity-config-schema)
+- Defaults block: (anchor: defaults)
+- Thresholds sugar: (anchor: thresholds)
+- Focus mode: (anchor: tiers)
+- Solver pipeline step 1: (anchor: solver-pipeline)
+- Glyph "entity" resolution: (anchor: glyph-resolution)
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ export function evaluateEntity(
 ): ActiveEntry | null
 ```
 
-Full behaviour (plan pipeline step 1, lines 649–661):
+Full behaviour (plan pipeline step 1, anchor: solver-pipeline):
 
 1. **Unavailable/missing state handling**: If `config.entity_id` is absent from
    `states`, or `states[config.entity_id].state` is `"unavailable"` or `"unknown"`:
@@ -98,7 +98,7 @@ export function applyFocusMode(
 
 If any entry has `focusMode === true`, return only entries where
 `entry.tier === tiers[0]`. Otherwise return `entries` unchanged.
-(Plan lines 328–332.)
+(anchor: tiers, Focus mode section)
 
 ## Tests (`tests/rules.test.ts`)
 

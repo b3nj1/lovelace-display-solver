@@ -2,14 +2,15 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Phase 1 deliverables: `esphome_display_solver_plan.md` lines 968–998
-- ESPHome service contract (stable target): lines 982–994
-- What ESPHome side keeps: lines 1034–1040
+- Phase 1 deliverables: `esphome_display_solver_plan.md` (anchor: phase1)
+- ESPHome service contract (stable target): (anchor: phase1-contract-table)
+- Icon page cycling ESPHome contract: (anchor: icon-page-cycling)
+- What ESPHome side keeps: (anchor: esphome-side-keeps)
 
 ## Context
 
@@ -19,7 +20,7 @@ lambda or are always sent as a hardcoded constant:
 
 | Parameter | Reason to remove |
 |---|---|
-| `icon_scroll` | Accepted by the service but never read by the display lambda |
+| `icon_scroll` | Accepted by the service but never read by the display lambda — superseded by solver-controlled page dwell |
 | `info_glyph_font` | Always sent as the hardcoded value `3`; never varies |
 
 This step produces **documentation and ESPHome YAML artifacts only**. No TypeScript
@@ -33,10 +34,14 @@ Create `docs/esphome-service-contract.md` documenting the stable, versioned ESPH
 service contract after the two removals. It must include:
 
 - The full list of remaining parameters with type, array/scalar flag, and description
-- The exact target contract from plan lines 982–994 reproduced verbatim
+- The exact target contract from (anchor: phase1-contract-table) reproduced verbatim
 - A "Removed parameters" table listing `icon_scroll` and `info_glyph_font` with
   the rationale for each removal
 - A version label (`v1.0`) at the top so future breaking changes can be tracked
+- A note that icon page cycling requires no new ESPHome parameters (see
+  (anchor: icon-page-cycling)) — the solver sends successive page slices using the
+  existing `x[]`, `y[]`, `glyph[]` etc. arrays; paging state is managed entirely in
+  the solver host layer
 
 ### 2. ESPHome YAML reference snippet
 
@@ -57,11 +62,14 @@ In `docs/esphome-service-contract.md`, add a "Migration from pre-v1.0" section t
   these fields; sending unknown parameters causes an ESPHome runtime warning
 - Provides the one-line ESPHome YAML change needed per parameter removal
 
+Note: `icon_scroll` removal stands. Paging is achieved by the solver sending
+successive page slices using the existing glyph arrays — no new parameters.
+
 ## Constraints
 
 - Do not modify any source files outside `docs/`
 - Do not modify `legacy_hacked_display_solver/` — it is reference-only and will be
-  deleted before shipping (plan line 1038 context)
+  deleted before shipping (see anchor: esphome-side-keeps context)
 - The YAML in `docs/esphome-reference.yaml` must be syntactically valid ESPHome YAML
   (no Jinja2 lambdas needed — comment-stub them)
 
@@ -80,11 +88,14 @@ There is no executable code in this step. Instead:
 1. Validate that `docs/esphome-reference.yaml` is syntactically valid YAML (run
    `python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" docs/esphome-reference.yaml`).
 2. Verify `docs/esphome-service-contract.md` contains all required sections
-   (stable contract, removed parameters table, migration note, version label).
-3. Cross-check that every parameter in the stable contract table (plan lines 982–994)
+   (stable contract, removed parameters table, migration note, version label,
+   icon-paging note).
+3. Cross-check that every parameter in the stable contract table (anchor: phase1-contract-table)
    appears in `docs/esphome-reference.yaml` and vice versa — no orphan parameters.
 4. Confirm that `icon_scroll` and `info_glyph_font` do **not** appear in the stable
    contract table or the YAML example.
+5. Confirm that the ESPHome YAML display lambda requires no modification to support
+   icon paging (it draws whatever glyphs it receives).
 
 Report results as a checklist. All items must pass before sign-off.
 

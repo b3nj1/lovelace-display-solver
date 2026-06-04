@@ -2,15 +2,15 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- HACS plugin requirements: lines 953–958
+- HACS plugin requirements: (anchor: lovelace-card-requirements)
 - hacs.json content: CLAUDE.md "hacs.json" section
-- Success criteria: lines 1067–1077
-- Key External References: lines 1052–1064
+- Success criteria: (anchor: success-criteria)
+- Key External References: (anchor: external-references)
 - HACS plugin file resolution: CLAUDE.md "HACS plugin file resolution order"
 
 ## Prerequisites
@@ -75,13 +75,14 @@ Required sections (HACS shows the README in the store UI):
    as the base, with comments explaining each section.
 
 4. **Entity config reference**: Document each field in `EntityConfig` with type,
-   required/optional, and a one-line description. Match the schema in plan lines
-   280–452.
+   required/optional, and a one-line description. Match the schema in anchor: entity-config-schema.
 
 5. **Display profile reference**: Document each field in `DisplayProfile` with type,
-   required/optional, and description. Match plan lines 128–220.
+   required/optional, and description. Match anchor: display-profile-schema.
+   Include `page_dwell_s` with a note that it only applies when icons overflow the
+   selected layout.
 
-6. **Viewing distance presets**: Table from plan lines 107–127.
+6. **Viewing distance presets**: Table from anchor: multi-display.
 
 7. **Glyph names**: Explain the four reference forms (MSS name, `mdi:`, `"entity"`,
    raw unicode). Link to the Material Symbols Sharp catalog and the MDI icon catalog.

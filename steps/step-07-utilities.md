@@ -2,17 +2,17 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Glyph Resolution section: lines 555–620
-- Glyph reference forms table: lines 561–567
-- Font alignment between ESPHome and canvas: lines 568–580
-- ESPHome glyph validation: lines 581–620
-- `idle_glyph` field: lines 145–148 and 621–626
-- Color utilities usage: plan lines 755–760 (severity bar color), 823–828 (zone color)
+- Glyph Resolution section: (anchor: glyph-resolution)
+- Glyph reference forms table: (anchor: glyph-resolution)
+- Font alignment between ESPHome and canvas: (anchor: glyph-resolution)
+- ESPHome glyph validation: (anchor: glyph-resolution)
+- `idle_glyph` field: (anchor: idle-glyph)
+- Color utilities usage: (anchor: severity-bar) (severity bar color), (anchor: zone-indicators) (zone color)
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ export function resolveColor(name: string): RGB
 table, returns `{ r: 255, g: 255, b: 255 }` (white) and logs a console warning once
 per unknown name (use a `Set` to deduplicate warnings).
 
-All color names used in plan examples (plan lines 365–452) must be in the table:
+All color names used in plan examples (anchor: entity-config-schema) must be in the table:
 `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `white`.
 
 ### `src/utils/glyph.ts`
@@ -70,7 +70,7 @@ export type GlyphName = string;   // re-export or import from types.ts
 /** Maps MDI icon names to their nearest Material Symbols Sharp equivalent. */
 export const MDI_TO_MSS: Record<string, string> = { ... };
 
-/** Maps Material Symbols Sharp names to their unicode codepoint strings. */
+/** Maps Material Symbols Sharp names to their unicode codepoints. */
 export const MSS_CODEPOINTS: Record<string, string> = { ... };
 
 /**
@@ -82,13 +82,13 @@ export const MSS_CODEPOINTS: Record<string, string> = { ... };
  */
 export function resolveGlyph(name: GlyphName): string
 
-export const MDI_FALLBACK = '�';  // replacement character signals "load MDI webfont"
+export const MDI_FALLBACK = '?';  // replacement character signals "load MDI webfont"
 ```
 
 #### MDI → MSS mapping table
 
 The table must cover at minimum all MDI names used in the plan's YAML examples
-(plan lines 377, 439) plus a reasonable set of common HA icons:
+(anchor: entity-config-schema) plus a reasonable set of common HA icons:
 
 | MDI name | MSS equivalent |
 |---|---|
@@ -119,7 +119,7 @@ path).
 #### MSS codepoints table
 
 The `MSS_CODEPOINTS` table maps MSS glyph names to their unicode codepoints.
-Include at minimum all names listed in plan lines 601–619 (`font_glyphs` example)
+Include at minimum all names listed in the `font_glyphs` example (anchor: glyph-resolution)
 plus all names referenced anywhere in the plan YAML examples.
 
 Obtain the correct codepoints from the Material Symbols metadata. Do not guess
@@ -161,7 +161,7 @@ in during Step 11 (ESPHome adapter) when the font_glyphs list is validated.
 - `"entity"` → throws `Error`
 - Single non-ASCII char → returned as-is
 - Empty string → returns `MDI_FALLBACK`
-- All names in the `font_glyphs` example (plan lines 601–619) are present in
+- All names in the `font_glyphs` example (anchor: glyph-resolution) are present in
   `MSS_CODEPOINTS` (even if placeholder values)
 
 ## Constraints
@@ -178,7 +178,7 @@ in during Step 11 (ESPHome adapter) when the font_glyphs list is validated.
 
 Implement both utility files. For `MSS_CODEPOINTS`, populate the entries for all
 names from the plan's `font_glyphs` example and all names used in YAML examples.
-If you cannot verify codepoints without external access, use placeholder `""`
+If you cannot verify codepoints without external access, use placeholder `""`
 values and add a TODO comment as specified above.
 
 ### test agent

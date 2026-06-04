@@ -2,22 +2,22 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Entity Config Schema: lines 280–452
-- Defaults block: lines 454–470
-- Thresholds sugar: lines 472–495
-- Groups: lines 499–519
-- Rule Syntax Reference: lines 522–550
-- Glyph Resolution forms: lines 555–568
-- Display Profile Schema: lines 128–220
-- Solver Architecture (inputs/outputs): lines 629–648
-- Severity bar schema: lines 762–777
-- Zone indicator schema: lines 868–933
-- Solver pipeline output types: lines 634–643
+- Entity Config Schema: (anchor: entity-config-schema)
+- Defaults block: (anchor: defaults)
+- Thresholds sugar: (anchor: thresholds)
+- Groups: (anchor: groups)
+- Rule Syntax Reference: (anchor: rule-syntax)
+- Glyph Resolution forms: (anchor: glyph-resolution)
+- Display Profile Schema: (anchor: display-profile-schema)
+- Solver Architecture (inputs/outputs): (anchor: solver-architecture)
+- Severity bar schema: (anchor: severity-bar)
+- Zone indicator schema: (anchor: zone-indicators)
+- Solver pipeline output types: (anchor: solver-architecture)
 
 ## Prerequisites
 
@@ -142,6 +142,7 @@ export interface DisplayProfile {
   burn_in_drift: boolean;
   viewing_distance: 'far' | 'near' | 'close';
   idle_glyph: GlyphName;
+  page_dwell_s?: number;   // seconds per icon page; defaults to 5.0; host layer uses this
   glyph_sizes: Record<string, GlyphSize>;
   layouts: LayoutEntry[];
   zones?: ZoneSlot[];
@@ -218,13 +219,14 @@ export interface SeverityBarEntry {
 
 export interface SolverResult {
   profileId: string;
-  glyphs: GlyphEntry[];
+  glyphs: GlyphEntry[];      // current page's glyph slice only
   info: InfoEntry[];
   zones: ZoneEntry[];
   severityBar: SeverityBarEntry | null;
   layout: LayoutEntry;
   error: boolean;
   warnings: string[];
+  pageCount: number;         // 1 = no overflow; >1 = caller must schedule dwell
 }
 ```
 
@@ -275,8 +277,8 @@ Returns a list of human-readable error strings. Empty array = valid. Checks:
 - No `any` types
 - No runtime logic other than `validateCardConfig`
 - All interfaces exported from `src/solver/types.ts`
-- `CardConfig` must align exactly with the YAML schema in the plan (plan lines
-  344–452 show the user-facing YAML; the TypeScript interface must mirror it)
+- `CardConfig` must align exactly with the YAML schema in the plan (anchor: entity-config-schema
+  shows the user-facing YAML; the TypeScript interface must mirror it)
 
 ## Agent instructions
 
@@ -291,14 +293,13 @@ Implement `tests/types.test.ts`. Run `npm test`. All validation cases must pass.
 
 ### user-review agent
 
-Review the TypeScript interface field names against the YAML schema in plan lines
-344–452:
+Review the TypeScript interface field names against the YAML schema in anchor: entity-config-schema:
 - Every YAML key the user writes must have a corresponding TypeScript field with the
   **same name** (camelCase vs snake_case mismatches cause silent config failures)
 - `value_format` in YAML → should be `value_format` in TypeScript (not `valueFormat`)
   to avoid needing a transformation layer
 - Are the union types for `action` (`'show' | 'hide' | 'indicator'`) complete?
-- Does `ZonePosition` cover all position shortcuts listed in plan lines 843–855?
+- Does `ZonePosition` cover all position shortcuts listed in anchor: zone-indicators?
 
 File issues as numbered list.
 

@@ -2,20 +2,20 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Phase 2 goals: lines 999–1006
-- Entity Config Schema (rules, tiers, thresholds, defaults): lines 280–495
-- Rule Syntax Reference: lines 522–550
-- Solver pipeline steps 1–3: lines 649–663
-- Glyph resolution (entity-inherit form only): lines 555–568
-- Defaults block: lines 454–470
-- Thresholds sugar: lines 472–495
-- Focus mode: lines 328–332
-- Groups (data model only, not placement): lines 499–519
+- Phase 2 goals: (anchor: phase2)
+- Entity Config Schema (rules, tiers, thresholds, defaults): (anchor: entity-config-schema)
+- Rule Syntax Reference: (anchor: rule-syntax)
+- Solver pipeline steps 1–3: (anchor: solver-pipeline)
+- Glyph resolution (entity-inherit form only): (anchor: glyph-resolution)
+- Defaults block: (anchor: defaults)
+- Thresholds sugar: (anchor: thresholds)
+- Focus mode: (anchor: tiers)
+- Groups (data model only, not placement): (anchor: groups)
 
 ## Context
 
@@ -94,7 +94,7 @@ def evaluate_entity(
 ) -> ActiveEntry | None
 ```
 
-Behaviour (matches plan pipeline step 1, lines 649–663):
+Behaviour (matches plan pipeline step 1, anchor: solver-pipeline):
 
 1. If `entity_id` is absent from `states`, or its state is `"unavailable"` or
    `"unknown"`: apply `defaults.unavailable_action`. If `hide`, return `None`.
@@ -122,7 +122,7 @@ def apply_focus_mode(entries: list[ActiveEntry], tiers: list[str]) -> list[Activ
 
 If any entry has `focus_mode: True`, return only entries whose tier is the first
 element of `tiers` (i.e. `tiers[0]`, the most urgent tier). Otherwise return `entries`
-unchanged. (Plan line 328–332.)
+unchanged. (anchor: tiers, Focus mode section)
 
 ## Tests (`tests/test_rules.py`)
 
@@ -173,7 +173,7 @@ Review `python_solver/types.py` field names and `python_solver/rules.py` functio
 signatures for:
 
 - Field names match the YAML schema the user writes in their Lovelace card config
-  (plan lines 360–452) — any mismatch causes silent config errors
+  (anchor: entity-config-schema) — any mismatch causes silent config errors
 - Error messages from `validate_entity_config` are actionable (state what is wrong
   and where)
 - `ActiveEntry` fields are sufficient for Step 3 (pipeline) to produce correct output

@@ -2,16 +2,17 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Stable ESPHome service contract: lines 982–994
-- ESPHome Service Contract section: lines 968–998
-- Severity bar adapter encoding: lines 779–806
-- Glyph resolution / font_glyphs validation: lines 581–620
-- Output adapters table: lines 222–232
+- Stable ESPHome service contract: (anchor: phase1-contract-table)
+- ESPHome Service Contract section: (anchor: phase1)
+- Icon page cycling ESPHome contract: (anchor: icon-page-cycling)
+- Severity bar adapter encoding: (anchor: severity-bar)
+- Glyph resolution / font_glyphs validation: (anchor: glyph-resolution)
+- Output adapters table: (anchor: output-adapters)
 
 ## Prerequisites
 
@@ -24,6 +25,11 @@
 required by the stable ESPHome service contract. It does not call `hass.callService`
 — that is the card's responsibility (Step 13). This keeps the adapter pure and unit-
 testable without a browser or HA instance.
+
+The adapter receives an **already-sliced** glyph list from the solver — the solver
+handles page partitioning before the adapter is called (see anchor: icon-page-cycling-solver).
+The adapter has no paging logic of its own; it simply packs whatever `result.glyphs`
+contains into the flat arrays.
 
 ## Deliverables
 
@@ -78,7 +84,7 @@ export function packESPhomePayload(
 Packing rules:
 
 **Glyph arrays** (`x`, `y`, `r`, `g`, `b`, `glyph`):
-- One entry per `result.glyphs` entry
+- One entry per `result.glyphs` entry (the current page's slice — solver already partitioned)
 - `glyph` = `entry.codepoint`
 - `glyph_font` = font index derived from the selected layout's `icon.size`:
   the index of `layout.icon.size` in the list of `profile.glyph_sizes` keys
@@ -134,6 +140,8 @@ Required test cases:
 7. Array length invariant: manually crafted malformed `SolverResult` with mismatched
    arrays → function throws `Error` (this tests the invariant check)
 8. `error: true` in SolverResult → `ESPhomePayload.error === true`
+9. Page-slice regression: adapter output for a 1-page result (no overflow) is
+   identical to pre-paging behaviour — existing tests must still pass unchanged
 
 ## Constraints
 
@@ -141,6 +149,8 @@ Required test cases:
 - All parallel arrays must be equal length within their group
 - No `any` types
 - `packESPhomePayload` does not call any external service
+- The adapter receives an already-sliced glyph list; it must not re-slice or
+  apply any paging logic of its own
 
 ## Agent instructions
 
@@ -150,7 +160,7 @@ Implement `src/adapters/esphome.ts` as specified.
 
 ### test agent
 
-Implement `tests/esphome-adapter.test.ts` with all 8 cases. Run `npm test`. Zero
+Implement `tests/esphome-adapter.test.ts` with all 9 cases. Run `npm test`. Zero
 failures.
 
 ### user-review agent
@@ -174,3 +184,5 @@ Review:
 - No mutation of `result` or `profile` inputs
 - `info_glyph` for entries where `glyph` is empty — is `""` the correct sentinel for
   ESPHome (does it display nothing, or does it display the replacement character)?
+- Confirm the adapter makes no assumptions about how many glyphs are in `result.glyphs`
+  — it packs whatever it receives, whether that is a full page or a partial page

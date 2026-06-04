@@ -2,19 +2,20 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Custom Card API contract: lines 936–948
-- Toolchain (Lit 3, HA CSS variables): lines 949–963
+- Custom Card API contract: (anchor: lovelace-card-requirements)
+- Toolchain (Lit 3, HA CSS variables): (anchor: lovelace-card-requirements)
 - hass object quick reference: (CLAUDE.md `hass Object Quick Reference` section)
 - Config mutation rule (never mutate frozen config): (CLAUDE.md `Config mutation rule`)
 - Registering in card picker: (CLAUDE.md `Registering in card picker`)
-- Phase 5 goals: lines 1019–1026
-- Solver Architecture (pure, no DOM): lines 629–648
-- Output adapters: lines 222–232
+- Phase 5 goals: (anchor: phase5)
+- Solver Architecture (pure, no DOM): (anchor: solver-architecture)
+- Output adapters: (anchor: output-adapters)
+- Icon page cycling dwell timer: (anchor: icon-page-cycling-dwell)
 
 ## Prerequisites
 
@@ -57,6 +58,9 @@ export class DisplaySolverCard extends LitElement {
   @state() private _hass?: HomeAssistant;    // HomeAssistant type from HA typedefs
   @state() private _errors: string[] = [];
 
+  // per-profile paging state (anchor: icon-page-cycling-dwell)
+  private _pageState: Record<string, { currentPage: number; dwellTimer?: ReturnType<typeof setTimeout> }> = {};
+
   static styles = css`
     ha-card { ... }
     canvas { ... }
@@ -83,7 +87,9 @@ export class DisplaySolverCard extends LitElement {
 #### `set hass(hass)`
 
 1. Store `this._hass = hass`.
-2. Call `this._runSolver()`.
+2. Cancel all pending dwell timers (content change resets paging — anchor: icon-page-cycling-dwell).
+3. Reset `currentPage = 0` for all profiles in `this._pageState`.
+4. Call `this._runSolver()`.
 
 `set hass` is called on every entity state change. Keep it fast.
 
@@ -92,6 +98,7 @@ export class DisplaySolverCard extends LitElement {
 1. Guard: if `!this._config || !this._hass` return immediately.
 2. For each profile in `this._config.display_profiles`, call:
    ```ts
+   const pageState = this._pageState[profile.id] ?? { currentPage: 0 };
    const result = solve(
      this._config.entities,
      this._hass.states,
@@ -100,6 +107,7 @@ export class DisplaySolverCard extends LitElement {
      this._config.groups ?? [],
      profile,
      resolveGlyph,
+     pageState.currentPage,
    );
    ```
 3. For `canvas` profiles: store results; `this.requestUpdate()` to trigger re-render.
@@ -113,6 +121,15 @@ export class DisplaySolverCard extends LitElement {
    );
    ```
    On error, log to console (do not throw).
+5. For each profile where `result.pageCount > 1`, schedule a dwell callback:
+   ```ts
+   const dwellMs = (profile.page_dwell_s ?? 5.0) * 1000;
+   this._pageState[profile.id].dwellTimer = setTimeout(() => {
+     const ps = this._pageState[profile.id];
+     ps.currentPage = (ps.currentPage + 1) % result.pageCount;
+     this._runSolver();
+   }, dwellMs);
+   ```
 
 #### `render()`
 
@@ -233,6 +250,8 @@ Required test cases:
   happens in `updated()` which is async-capable
 - No `any` types
 - `callService` is called only for `esphome` profiles with `result.error === false`
+- Dwell timers must be cancelled in `set hass` before scheduling new ones — prevents
+  stale dwell callbacks from overwriting post-state-change results
 
 ## Agent instructions
 
@@ -270,3 +289,5 @@ Review:
   and rendered?
 - `structuredClone` availability: is this safe in all HA-targeted browsers?
   (HA 2024.4+ runs in modern Chromium; `structuredClone` is available — confirm.)
+- Dwell timer cleanup: are timers in `_pageState` also cleared on `disconnectedCallback`
+  to prevent memory leaks?

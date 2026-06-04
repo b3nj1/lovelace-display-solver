@@ -2,15 +2,15 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Viewing distance → layout density presets: lines 96–127
-- Display Profile Schema (layouts, glyph_sizes, margin_px, burn_in_drift): lines 128–220
-- Solver pipeline steps 5–8: lines 662–678
-- Burn-in drift formula: lines 672–678
+- Viewing distance → layout density presets: (anchor: multi-display)
+- Display Profile Schema (layouts, glyph_sizes, margin_px, burn_in_drift): (anchor: display-profile-schema)
+- Solver pipeline steps 5–8: (anchor: solver-pipeline)
+- Burn-in drift formula: (anchor: solver-pipeline)
 
 ## Prerequisites
 
@@ -52,8 +52,7 @@ export function expandViewingDistance(profile: DisplayProfile): {
 }
 ```
 
-Returns the constraints for the profile's `viewing_distance` preset. (Plan lines
-107–127.)
+Returns the constraints for the profile's `viewing_distance` preset. (anchor: multi-display)
 
 #### Layout selection
 
@@ -65,7 +64,7 @@ export function selectLayout(
 ): LayoutEntry | null
 ```
 
-Algorithm (plan lines 662–672):
+Algorithm (anchor: solver-pipeline):
 
 1. Get constraints via `expandViewingDistance(profile)`.
 2. Get available glyph size names ordered largest-to-smallest from `profile.glyph_sizes`.
@@ -74,7 +73,7 @@ Algorithm (plan lines 662–672):
 3. Filter: `iconCount >= layout.icon.min && iconCount <= layout.icon.max`.
 4. Filter: skip layouts where `layout.info.min > 0` when `hasInfo === false`.
 5. Filter: if `constraints.max_info_rows === 0`, skip layouts with `layout.info.min > 0`
-   (this is the `far` distance filter — plan line 114).
+   (this is the `far` distance filter — anchor: multi-display).
 6. Return the first matching layout (user-declared order). Return `null` if none match.
 
 #### Coordinate computation
@@ -88,7 +87,7 @@ export function computeGlyphCoordinates(
 ): GlyphEntry[]
 ```
 
-Algorithm (plan lines 672–678):
+Algorithm (anchor: solver-pipeline):
 
 1. If `profile.burn_in_drift`:
    ```
@@ -208,4 +207,4 @@ Review:
 - `computeGlyphCoordinates` integer math: `Math.floor` used consistently (no floats
   in pixel coordinates)?
 - burn-in drift formula: `hour / 23` at hour=0 gives 0; at hour=23 gives 1.0 —
-  confirm this is intentional and matches plan lines 672–678 exactly
+  confirm this is intentional and matches anchor: solver-pipeline exactly

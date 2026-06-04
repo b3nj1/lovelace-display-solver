@@ -2,17 +2,17 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
 - Visual editor (lazy-loaded): CLAUDE.md "Visual editor" section
-- Custom Card API: lines 936–948 (getConfigElement)
-- Entity Config Schema: lines 280–452
-- Display Profile Schema: lines 128–220
-- Tiers, Defaults: lines 311–351
-- HA design system: lines 959–963
+- Custom Card API: (anchor: lovelace-card-requirements)
+- Entity Config Schema: (anchor: entity-config-schema)
+- Display Profile Schema: (anchor: display-profile-schema)
+- Tiers, Defaults: (anchor: tiers) and (anchor: defaults)
+- HA design system: (anchor: lovelace-card-requirements)
 
 ## Prerequisites
 
@@ -109,6 +109,7 @@ For each profile in `config.display_profiles`, render a row showing:
 - `service` (text input, shown only when `type === 'esphome'`)
 - `viewing_distance` (select: `far`, `near`, `close`)
 - `burn_in_drift` (checkbox)
+- `page_dwell_s` (number input, shown with label "Icon page dwell (seconds)")
 - A "Remove profile" button
 
 "Add profile" button appends a new profile with default values.
@@ -196,6 +197,8 @@ of a HA user who has never seen this card before:
    acceptable UX for v1 or should basic layout editing be in scope?
 6. Is it clear from the editor what a "glyph" is? Should there be placeholder text
    or a link to the glyph reference?
+7. `page_dwell_s` field — is the label "Icon page dwell (seconds)" clear? Should it
+   note that this only applies when icons overflow the selected layout?
 
 File every issue, including minor UX friction. All must be resolved before sign-off.
 

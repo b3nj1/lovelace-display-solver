@@ -2,16 +2,17 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Phase 4 goals: lines 1018–1026
-- What moves out of Node-RED: lines 1042–1048
-- ESPHome service contract (stable): lines 982–994
-- hass object quick reference (services): lines 631 area (AppDaemon analog)
-- Multi-display principle: lines 98–103
+- Phase 4 goals: (anchor: phase4)
+- What moves out of Node-RED: (anchor: moves-out-of-nodered)
+- ESPHome service contract (stable): (anchor: phase1-contract-table)
+- Icon page cycling dwell timer: (anchor: icon-page-cycling-dwell)
+- Icon page cycling solver pipeline: (anchor: icon-page-cycling-solver)
+- Multi-display principle: (anchor: multi-display)
 
 ## Prerequisites
 
@@ -58,7 +59,7 @@ def load_config(path: str) -> tuple[list[EntityConfig], list[DisplayProfile], li
 
 Config file format: a YAML file whose top-level keys map directly to the schema
 defined in Steps 2–3. Example structure (mirrors the Lovelace card YAML schema
-from plan lines 344–452):
+from anchor: entity-config-schema):
 
 ```yaml
 tiers: [critical, alert, status, ambient]
@@ -105,16 +106,23 @@ class DisplaySolverApp(hass.Hass):
 4. Debounce: accumulate change events; schedule a solve 500ms after the last change.
    Use `self.run_in` for the debounce timer; cancel a pending timer before scheduling
    a new one.
+5. Initialise per-profile `PageState` tracking (anchor: icon-page-cycling-solver).
 
 `_on_state_change`:
 - Collect the changed entity; trigger the debounced solve.
+- Cancel any pending dwell timer for all profiles; reset `current_page = 0` for
+  all profiles (content change takes priority over mid-cycle position).
 
 `_dispatch`:
 - For each `SolverResult` where `profile.type == "esphome"` and `error == False`:
   call `self.call_service(profile.service, **payload)` where `payload` is the
-  packed ESPHome payload from the ESPHome adapter (plan lines 982–994).
+  packed ESPHome payload from the ESPHome adapter (anchor: phase1-contract-table).
 - Log `result.warnings` at WARNING level.
 - Log `result.error == True` at ERROR level with `profile_id`.
+- After dispatch, if `result.page_count > 1`, schedule a dwell callback for
+  `profile.page_dwell_s` seconds using `self.run_in`. On expiry, increment
+  `current_page` (wrap at `page_count`) and re-run the solver for that profile only
+  (no rule re-evaluation — same state snapshot).
 
 ### ESPHome payload packing in AppDaemon context
 
@@ -122,7 +130,7 @@ Because the TypeScript ESPHome adapter (Step 11) does not exist yet, implement a
 minimal `pack_esphome_payload(result: SolverResult) -> dict` function in
 `appdaemon/apps/display_solver/app.py` or a sibling `esphome.py` file. This function
 packs a `SolverResult` into the flat arrays required by the stable service contract
-(plan lines 982–994). This is a temporary implementation; it will be superseded by
+(anchor: phase1-contract-table). This is a temporary implementation; it will be superseded by
 the TypeScript adapter in Step 11.
 
 Payload arrays:
@@ -176,6 +184,8 @@ instance. Test the logic that can be unit-tested in isolation:
   `self.call_service`)
 - No polling; only `listen_state` subscriptions
 - Debounce timer: 500ms, cancel-and-reschedule on rapid state bursts
+- Dwell timer: per-profile, cancel on state change, schedule after dispatch when
+  `page_count > 1`
 - `pack_esphome_payload` is temporary; it should be marked with a `# TODO: replace
   with TypeScript adapter (Step 11)` comment
 
@@ -183,9 +193,10 @@ instance. Test the logic that can be unit-tested in isolation:
 
 ### dev agent
 
-Implement all files listed. Focus on correct debounce logic and payload packing.
-The `_dispatch` method should be robust: a failure on one profile must not prevent
-dispatch to other profiles (catch exceptions per profile, log, continue).
+Implement all files listed. Focus on correct debounce logic, payload packing, and
+per-profile dwell timer management (anchor: icon-page-cycling-dwell). The `_dispatch`
+method should be robust: a failure on one profile must not prevent dispatch to other
+profiles (catch exceptions per profile, log, continue).
 
 ### test agent
 
@@ -211,6 +222,8 @@ File issues as numbered list.
 Review `app.py` for:
 - Debounce: is the cancel-and-reschedule pattern correct for AppDaemon's `run_in`
   API? Verify that the timer handle is stored and cancelled before rescheduling.
+- Dwell timer: is it correctly cancelled on state change before scheduling a new
+  one? Is the per-profile isolation correct?
 - `_dispatch`: is the per-profile exception isolation correct?
 - `pack_esphome_payload`: array length equality — is it guaranteed even when some
   result fields are empty?

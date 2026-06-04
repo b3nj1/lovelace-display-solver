@@ -2,16 +2,16 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Font alignment between ESPHome and canvas: lines 568–580
-- Output adapters table: lines 222–232
-- Severity bar canvas encoding: lines 793–806
-- Canvas profile type (`type: canvas`): lines 190–201
-- Viewing distance close: lines 113–115
+- Font alignment between ESPHome and canvas: (anchor: glyph-resolution)
+- Output adapters table: (anchor: output-adapters)
+- Severity bar canvas encoding: (anchor: severity-bar)
+- Canvas profile type (`type: canvas`): (anchor: display-profile-schema)
+- Viewing distance close: (anchor: multi-display)
 
 ## Prerequisites
 
@@ -131,7 +131,7 @@ fallback color for the rail outline when the variable is not set.
 #### Severity bar rail extent
 
 The rail extent (full bar at 100%) mirrors the severity bar pixel rect formula from
-Step 10:
+Step 10 (anchor: severity-bar):
 - `bottom` edge: `x=margin_px[0]`, `y=screen_px[1]-margin_px[1]-thickness_px`,
   `w=screen_px[0]-2*margin_px[0]`, `h=thickness_px`
 

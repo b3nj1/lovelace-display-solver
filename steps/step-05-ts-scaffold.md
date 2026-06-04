@@ -2,17 +2,16 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Phase 5 goals: lines 1019–1026
-- Toolchain constraints: lines 949–953 (inside HA API Contract section)
-- HACS plugin requirements: lines 953–958
-- HA design system: lines 959–963
-- Custom Card API contract (required methods): lines 936–948
-- hacs.json required content: lines 954–956
+- Phase 5 goals: (anchor: phase5)
+- Toolchain constraints: (anchor: lovelace-card-requirements)
+- HACS plugin requirements: (anchor: lovelace-card-requirements)
+- HA design system: (anchor: lovelace-card-requirements)
+- Custom Card API contract (required methods): (anchor: lovelace-card-requirements)
 - Repository layout: CLAUDE.md (project instructions)
 
 ## Context
@@ -87,7 +86,7 @@ export default {
 };
 ```
 
-The `terser({ ecma: 2022 })` line is non-negotiable (plan line 951 area).
+The `terser({ ecma: 2022 })` line is non-negotiable (anchor: lovelace-card-requirements).
 
 ### `hacs.json`
 

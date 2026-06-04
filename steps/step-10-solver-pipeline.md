@@ -2,19 +2,20 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Solver Architecture Rules: lines 629–648
-- Full pipeline (steps 1–13): lines 649–692
-- Group placement: lines 693–703
-- Severity bar calculation: lines 718–750 and 680–692
-- Zone indicators: lines 807–933 (concept, color, position)
-- Zone position shortcuts: lines 843–855
-- Info format strings: lines 295–310
-- Idle glyph: lines 145–148, 621–626
+- Solver Architecture Rules: (anchor: solver-architecture)
+- Full pipeline (steps 1–13): (anchor: solver-pipeline)
+- Group placement: (anchor: group-placement)
+- Icon page cycling — solver pipeline: (anchor: icon-page-cycling-solver)
+- Icon page cycling — dwell timer: (anchor: icon-page-cycling-dwell)
+- Severity bar calculation: (anchor: severity-bar)
+- Zone indicators: (anchor: zone-indicators)
+- Info format strings: (anchor: info-format-strings)
+- Idle glyph: (anchor: idle-glyph)
 
 ## Prerequisites
 
@@ -50,34 +51,39 @@ export function solve(
   groups: GroupConfig[],
   profile: DisplayProfile,
   glyphResolver: GlyphResolver,
+  currentPage: number,   // 0-based; host layer manages paging state
   now?: Date,
 ): SolverResult
 ```
 
+The `currentPage` parameter is 0 when paging is not active. The solver uses it to
+slice the glyph output; it does not manage any timer state itself. This preserves
+the pure-function contract (see anchor: icon-page-cycling-dwell).
+
 #### Full pipeline
 
-**Stage 1 — Rule evaluation** (step 1, plan lines 649–661):
+**Stage 1 — Rule evaluation** (step 1, anchor: solver-pipeline):
 
 For each `EntityConfig`, call `evaluateEntity(config, states, tiers, defaults)`.
 Collect non-null results into `activeEntries: ActiveEntry[]`.
 
-**Stage 2 — Bucket by tier** (step 2, plan line 662):
+**Stage 2 — Bucket by tier** (step 2, anchor: solver-pipeline):
 
 Sort `activeEntries` by tier order (`tiers.indexOf(entry.tier)`), then by entity
 config order (stable sort — entities declared first appear first within a tier).
 
-**Stage 3 — Focus mode** (step 3, plan lines 662–663):
+**Stage 3 — Focus mode** (step 3, anchor: solver-pipeline):
 
 Call `applyFocusMode(activeEntries, tiers)`.
 
-**Stage 4 — Glyph name → codepoint** (step 4, plan lines 663–665):
+**Stage 4 — Glyph name → codepoint** (step 4, anchor: solver-pipeline):
 
 For each active entry, call `glyphResolver(entry.glyphName)` to get the codepoint.
 If the profile has `font_glyphs` (ESPHome targets) and the resolved MSS name is not
 in `profile.font_glyphs`, push a warning:
 `"Glyph '${name}' not in profile ${profile.id} font_glyphs — will render blank"`.
 
-**Stage 5 — Count visible icons** (step 5, plan line 665):
+**Stage 5 — Count visible icons** (step 5, anchor: solver-pipeline):
 
 Group members collapse to 1 slot. Count = number of non-indicatorOnly active entries,
 with all active members of the same group counted as 1 regardless of member count.
@@ -86,21 +92,32 @@ Build a group visibility map: for each group, record the first-encountered (high
 priority) active member as the representative entry. Other members are tracked for
 placement but not counted.
 
-**Stage 6 — Layout selection** (step 6, plan lines 665–672):
+**Stage 6 — Layout selection** (step 6, anchor: solver-pipeline):
 
 `hasInfo = activeEntries.some(e => e.showInfo)`.
 Call `selectLayout(profile, iconCount, hasInfo)`.
 If `null`, return `SolverResult` with `error: true`.
 
-**Stage 7 — Coordinate computation** (step 7, plan lines 672–678):
+**Stage 7 — Page mode** (step 7, anchor: solver-pipeline):
+
+After layout selection, compute `page_count = Math.ceil(totalVisibleIcons / layout.icon.max)`.
+If `page_count > 1`, the solver is in page mode. The `currentPage` parameter selects
+which slice of placed entries to include in the output:
+- Slice placed entries to `[currentPage * layout.icon.max .. (currentPage + 1) * layout.icon.max]`.
+- Only the slice for the current page is included in `SolverResult.glyphs`.
+- `page_count` is always returned in `SolverResult` so the caller knows whether to
+  schedule a dwell callback (see anchor: icon-page-cycling-solver).
+- Do NOT emit `error: true` for icon overflow — only emit for no-layout-match.
+
+**Stage 8 — Coordinate computation** (step 8, anchor: solver-pipeline):
 
 Call `computeGlyphCoordinates(profile, layout, gridEntries, now)` where `gridEntries`
-is the list of entries that appear in the icon grid (non-indicatorOnly, with group
-overlay/separate placement applied — see group placement below).
+is the current page's slice of entries that appear in the icon grid (non-indicatorOnly,
+with group overlay/separate placement applied — see group placement below).
 
 Fill in `codepoint` for each `GlyphEntry` using the codepoints resolved in stage 4.
 
-**Stage 8 — Info lines** (step 8, plan lines 678–680):
+**Stage 9 — Info lines** (step 9, anchor: solver-pipeline):
 
 Collect entries where `entry.showInfo === true`, in tier order.
 For each, render: substitute `{value}`, `{value:.0f}`, `{unit}` in `config.value_format`
@@ -116,7 +133,7 @@ If `config.value_format` is absent, default to `"{value} {unit}"`.
 
 Call `computeInfoCoordinates` for y positions of each info line.
 
-**Stage 9 — Zone indicators** (step 9, plan lines 679–682):
+**Stage 10 — Zone indicators** (step 10, anchor: solver-pipeline):
 
 For each zone slot in `profile.zones ?? []`:
 - Find the highest-tier active entry where `entry.entityConfig.zone === slot.id`
@@ -130,7 +147,7 @@ Zone position pixel computation:
 - Convert fractions to pixels: `pixelX = Math.round(frac.x * screen_px[0])` etc.
 - `ZoneEntry.shape` = `"filled_rectangle"` for all named shortcuts and explicit rects.
 
-Named shortcut expansion (plan lines 843–855):
+Named shortcut expansion (anchor: zone-indicators):
 ```
 margin_x = profile.margin_px[0] / profile.screen_px[0]
 margin_y = profile.margin_px[1] / profile.screen_px[1]
@@ -144,7 +161,7 @@ bottom-left → { x: 0,         y: 1-margin_y, w: margin_x, h: margin_y }
 bottom-right→ { x: 1-margin_x, y: 1-margin_y, w: margin_x, h: margin_y }
 ```
 
-**Stage 10 — Severity bar** (step 10, plan lines 680–692):
+**Stage 11 — Severity bar** (step 11, anchor: severity-bar):
 
 If `profile.severity_bar` is not configured, skip.
 
@@ -163,14 +180,14 @@ color = (profile.severity_bar.color === "entity")
   : resolveColor(profile.severity_bar.color)
 ```
 
-Pixel rect from `edge`, `thickness_px`, `screen_px`, and `margin_px` (plan lines 797–806):
+Pixel rect from `edge`, `thickness_px`, `screen_px`, and `margin_px` (anchor: severity-bar):
 - `bottom` edge: `x=margin_px[0]+xOffset`, `y=screen_px[1]-margin_px[1]-thickness_px+yOffset`,
   `w=Math.round(fill_ratio * (screen_px[0] - 2*margin_px[0]))`, `h=thickness_px`
 - Mirror formula for `top`, `left`, `right`.
 
 Emit `SeverityBarEntry`.
 
-**Stage 11 — Idle glyph** (step 11, plan line 692):
+**Stage 12 — Idle glyph** (step 12, anchor: solver-pipeline):
 
 If `activeAfterFocusMode` is empty after stage 3, place the `profile.idle_glyph`
 centered in the screen:
@@ -185,7 +202,7 @@ Emit a single `GlyphEntry` for the idle glyph.
 
 #### Group placement
 
-Applied in stage 7. (Plan lines 693–703.)
+Applied in stage 8. (anchor: group-placement)
 
 `collapse: overlay`:
 - When the placement loop first encounters any member of a group:
@@ -210,11 +227,13 @@ export function solveAll(
   groups: GroupConfig[],
   profiles: DisplayProfile[],
   glyphResolver: GlyphResolver,
+  currentPages: Record<string, number>,  // map of profile.id → currentPage
   now?: Date,
 ): SolverResult[]
 ```
 
 Calls `solve` for each profile independently. No shared mutable state between calls.
+`currentPages` maps each profile's ID to its current page index (0 when not paging).
 
 ## Tests (`tests/solver.test.ts`)
 
@@ -240,6 +259,11 @@ Required test cases:
 17. `solveAll`: two profiles produce independent results
 18. `solveAll`: no shared mutable state — running twice with same input produces
     identical results
+19. Icon paging: 5 icons, `layout.icon.max = 4` → `page_count = 2`; `currentPage=0`
+    returns icons 0–3; `currentPage=1` returns icon 4
+20. Icon paging: icon count exactly equals `layout.icon.max` → `page_count = 1`, no
+    paging, `glyphs` contains all icons
+21. Icon paging: `error: true` only when no layout matches, not on overflow
 
 ## Constraints
 
@@ -248,6 +272,8 @@ Required test cases:
 - `solveAll` isolation: each `solve` call is independent
 - Info line rendering must not throw on missing `value_format`, missing `unit`
   attribute, or unparseable float state
+- `currentPage` is accepted as input but no timer is set inside the solver — timer
+  management is exclusively the host layer's responsibility
 
 ## Agent instructions
 
@@ -258,7 +284,7 @@ readability; the `solve` function itself should not exceed ~100 lines.
 
 ### test agent
 
-Implement `tests/solver.test.ts` with all 18 cases. Run `npm test`. Zero failures.
+Implement `tests/solver.test.ts` with all 21 cases. Run `npm test`. Zero failures.
 
 ### user-review agent
 
@@ -269,6 +295,8 @@ Review from a user-debugging perspective:
   font_glyphs" should know exactly what to add to their ESPHome YAML.
 - Info line default format `"{value} {unit}"` — if `unit` is empty, will this render
   as `"23.5 "` (trailing space)? Is that acceptable?
+- `page_count > 1` in the result — is it clear to a card developer that they must
+  schedule a dwell callback?
 
 File issues as numbered list.
 
@@ -279,6 +307,7 @@ Review:
 - Group placement: no mutation of `entries` array; work on a copy
 - Zone position `Math.round` vs `Math.floor`: consistency with coordinate computation
   in layout.ts
-- Severity bar pixel rect formula: verify `bottom` edge formula matches plan lines
-  797–806 exactly
+- Severity bar pixel rect formula: verify `bottom` edge formula matches anchor: severity-bar exactly
 - `solveAll`: no closure over mutable state
+- Page slicing: `currentPage` bounds — what happens if `currentPage >= page_count`?
+  Should wrap or clamp? Document the chosen behaviour.

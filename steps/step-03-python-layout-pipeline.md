@@ -2,20 +2,20 @@
 
 ## Step discipline reference
 
-- Discipline rules: `esphome_display_solver_plan.md` lines 1080–1125
-- Implementation Steps index: `esphome_display_solver_plan.md` lines 1127–1145
+- Discipline rules: `esphome_display_solver_plan.md` (anchor: step-discipline) through (anchor: signoff-format)
+- Implementation Steps index: `esphome_display_solver_plan.md` (anchor: implementation-steps)
 
 ## Plan section references
 
-- Phase 2 goals: lines 999–1006
-- Phase 3 goals: lines 1007–1013
-- Display Profile Schema: lines 128–220
-- Viewing distance → layout density: lines 96–127
-- Solver pipeline steps 4–13: lines 662–692
-- Group placement: lines 693–703
-- Severity bar: lines 704–806
-- Zone indicators: lines 807–933
-- Solver Architecture Rules (pure functions): lines 629–648
+- Phase 2 goals: (anchor: phase2)
+- Phase 3 goals: (anchor: phase3)
+- Display Profile Schema: (anchor: display-profile-schema)
+- Viewing distance → layout density: (anchor: multi-display)
+- Solver pipeline steps 4–13: (anchor: solver-pipeline)
+- Group placement: (anchor: group-placement)
+- Severity bar: (anchor: severity-bar)
+- Zone indicators: (anchor: zone-indicators)
+- Solver Architecture Rules (pure functions): (anchor: solver-architecture)
 
 ## Prerequisites
 
@@ -59,7 +59,8 @@ Add these types (extend the file from Step 2):
   `screen_px: tuple[int,int]`, `margin_px: tuple[int,int]`, `burn_in_drift: bool`,
   `viewing_distance: str`, `idle_glyph: str`, `glyph_sizes: dict[str, GlyphSize]`,
   `layouts: list[LayoutEntry]`, `zones: list[ZoneSlot]`,
-  `severity_bar: SeverityBarConfig | None`, `font_glyphs: list[str]`
+  `severity_bar: SeverityBarConfig | None`, `font_glyphs: list[str]`,
+  `page_dwell_s: float` (defaults to 5.0)
 - `GlyphEntry` — fields: `glyph_name: str`, `x: int`, `y: int`, `size_px: int`,
   `r: int`, `g: int`, `b: int`
 - `InfoEntry` — fields: `text: str`, `x: int`, `y: int`, `r: int`, `g: int`, `b: int`
@@ -70,7 +71,7 @@ Add these types (extend the file from Step 2):
 - `SolverResult` — fields: `profile_id: str`, `glyphs: list[GlyphEntry]`,
   `info: list[InfoEntry]`, `zones: list[ZoneEntry]`,
   `severity_bar: SeverityBarEntry | None`, `layout: LayoutEntry`,
-  `error: bool`, `warnings: list[str]`
+  `error: bool`, `warnings: list[str]`, `page_count: int`
 
 ### `python_solver/layout.py`
 
@@ -103,7 +104,7 @@ def compute_coordinates(
     """
 ```
 
-Viewing distance preset expansion (plan lines 107–127):
+Viewing distance preset expansion (anchor: multi-display):
 
 | Preset | Expands to |
 |---|---|
@@ -111,14 +112,14 @@ Viewing distance preset expansion (plan lines 107–127):
 | `near` | `max_size: tiny`, `max_info_rows: 4`, `prefer_fewer_icons: false` |
 | `close` | `max_size: tiny`, `max_info_rows: 6`, `prefer_fewer_icons: false` |
 
-Layout filtering (plan lines 662–672):
+Layout filtering (anchor: solver-pipeline):
 1. Expand `viewing_distance` to `layout_constraints`
 2. For `far`/`max_info_rows: 0`: filter OUT layouts where `info_min > 0`
 3. Filter by `icon_count >= icon.min` AND `icon_count <= icon.max`
 4. Skip layouts where `info_min > 0` when `has_info` is False
 5. Return first remaining layout
 
-Burn-in drift offsets (plan lines 672–678):
+Burn-in drift offsets (anchor: solver-pipeline):
 ```
 x_offset = floor(now.hour / 23 * margin_px[0])
 y_offset = floor(now.minute / 59 * margin_px[1])
@@ -141,11 +142,12 @@ def solve(
     profile: DisplayProfile,
     glyph_resolver: Callable[[str], str],  # name → codepoint string
     groups: list[GroupConfig],
+    current_page: int = 0,    # 0-based; host layer manages paging state
     now: datetime | None = None,
 ) -> SolverResult:
 ```
 
-Pipeline (plan lines 649–692):
+Pipeline (anchor: solver-pipeline):
 
 1. Evaluate each entity config via `evaluate_entity` (from `rules.py`).
 2. Collect `ActiveEntry` results; bucket by tier order.
@@ -154,17 +156,20 @@ Pipeline (plan lines 649–692):
    absent from `profile.font_glyphs` (ESPHome targets only); add to `warnings`.
 5. Count visible icons (groups: all members that share a `group` id count as 1 slot
    regardless of member count).
-6. Select layout via `select_layout`. If `None`, return `SolverResult(error=True, ...)`.
-7. Compute glyph coordinates via `compute_coordinates`.
-8. Collect info lines: all active entries where `show_info` is True; render each as
+6. Select layout via `select_layout`. If `None`, return `SolverResult(error=True, page_count=1, ...)`.
+7. Compute `page_count = ceil(total_visible_icons / layout.icon_max)`. Slice placed
+   entries to `[current_page * icon_max .. (current_page+1) * icon_max]`. If no
+   layout matched, `page_count = 1`.
+8. Compute glyph coordinates via `compute_coordinates` for the current page's slice.
+9. Collect info lines: all active entries where `show_info` is True; render each as
    `f"{value_format} {label}"` using `states[entity_id]`; sort by tier order then
    entity config order.
-9. Resolve zone indicators: for each `ZoneSlot` in the profile, find the highest-tier
-   active entry referencing that zone; compute pixel rect from `ZoneSlot.position`.
-10. Compute severity bar (plan lines 680–692): `fill_ratio = (N - tier_index) / N`.
+10. Resolve zone indicators: for each `ZoneSlot` in the profile, find the highest-tier
+    active entry referencing that zone; compute pixel rect from `ZoneSlot.position`.
+11. Compute severity bar (anchor: severity-bar): `fill_ratio = (N - tier_index) / N`.
     Compute pixel rect. Emit `None` when idle and `hide_when_idle: True`.
-11. If active set is empty, resolve idle glyph and emit it centered.
-12. Return `SolverResult`.
+12. If active set is empty, resolve idle glyph and emit it centered.
+13. Return `SolverResult` with `page_count` field populated.
 
 ```python
 def solve_all(
@@ -175,16 +180,20 @@ def solve_all(
     profiles: list[DisplayProfile],
     glyph_resolver: Callable[[str], str],
     groups: list[GroupConfig],
+    current_pages: dict[str, int] | None = None,  # profile_id → current_page
     now: datetime | None = None,
 ) -> list[SolverResult]:
     """Run solve() independently for each profile. Returns results in profile order."""
 ```
 
+`current_pages` maps each profile's ID to its current page index. Defaults to 0 for
+all profiles when not provided.
+
 Also add `GroupConfig` to `types.py`:
 - `id: str`, `collapse: Literal["overlay","separate"]`,
   `color_policy: Literal["most_urgent","first_active","member"]`
 
-### Group placement rules (plan lines 693–703)
+### Group placement rules (anchor: group-placement)
 
 When the placement loop encounters a group member for the first time:
 - `collapse: overlay`: place all active members at the same (x,y); advance the column
@@ -218,6 +227,10 @@ When the placement loop encounters a group member for the first time:
   `hide_when_idle: True`
 - Idle glyph: emitted when active set is empty
 - No layout match: `SolverResult.error == True`
+- Icon paging: 5 icons with `icon_max=4` → `page_count=2`; `current_page=0` returns
+  icons 0–3; `current_page=1` returns icon 4
+- Icon paging: icon count equals `icon_max` → `page_count=1`, no slicing
+- `error: True` only on no-layout-match, not on icon overflow
 
 ## Constraints
 
@@ -247,7 +260,7 @@ Review:
 - `SolverResult.error: True` — is the reason for the error observable (should it
   include an `error_reason: str` field)?
 - Field names in `DisplayProfile` and `GlyphEntry` — do they match the YAML schema
-  the user writes (plan lines 150–220)?
+  the user writes (anchor: display-profile-schema)?
 
 File issues as numbered list.
 

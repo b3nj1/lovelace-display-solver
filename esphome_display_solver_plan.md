@@ -1,5 +1,6 @@
 # ESPHome Display Solver — Architecture Plan
 
+<!-- anchor: project-name -->
 ## Project Name
 
 **`lovelace-display-solver`**
@@ -18,6 +19,7 @@ Naming rationale:
 
 ---
 
+<!-- anchor: problem-statement -->
 ## Problem Statement
 
 The current system drives a 128×128 SSD1351 OLED with a dynamic icon/alert dashboard
@@ -34,6 +36,7 @@ both sides. It also targets only one display at a fixed resolution.
 
 ---
 
+<!-- anchor: why-not-esphome -->
 ## Why the Solver Cannot Live in ESPHome
 
 ESPHome is a code generator that emits a flat C++ program. Every `id:` is a compile-time
@@ -69,6 +72,7 @@ and unoccupied.
 
 ---
 
+<!-- anchor: solver-host -->
 ## Solver Host: Options and Recommendation
 
 The solver needs to run somewhere with access to live HA entity state, a data structure
@@ -91,6 +95,7 @@ the physical display shows, providing a direct authoring feedback loop.
 
 ---
 
+<!-- anchor: multi-display -->
 ## Multi-Display and Tailored Output
 
 ### Core Principle
@@ -126,6 +131,7 @@ layout_constraints:
 The config editor shows the expanded constraints as inline comments when a preset is
 selected, so the effect is always visible without reading documentation.
 
+<!-- anchor: display-profile-schema -->
 ### Display Profile Schema
 
 Layout `info` has two fields:
@@ -147,6 +153,12 @@ set is empty. Uses the same name resolution as entity glyphs. Defaults to
 `"check_circle"` (Material Symbols: all-clear). The Glyph Resolution section
 covers the `idle_glyph` field in full; see there for details.
 
+`page_dwell_s` controls how long the solver displays each icon page before advancing
+to the next when the active icon count exceeds the selected layout's `icon.max`.
+Fractional seconds are allowed. Defaults to `5.0`. Has no effect when all active icons
+fit on a single page. A state change always resets the page to 0 and restarts the
+dwell timer regardless of where in the cycle the display was.
+
 ```yaml
 display_profiles:
   - id: living_room_oled
@@ -157,6 +169,7 @@ display_profiles:
     burn_in_drift: true
     viewing_distance: far   # expands to: max_size: medium, max_info_rows: 0, prefer_fewer_icons: true
     idle_glyph: "check_circle"
+    page_dwell_s: 5.0           # seconds per icon page; only active when icons overflow layout
     glyph_sizes:            # named sizes compiled into firmware; solver maps size: name → px
       large:  {px: 116, fits_cols: 1}
       medium: {px:  58, fits_cols: 2}
@@ -219,6 +232,7 @@ display_profiles:
         info: {min: 0, max: 1}
 ```
 
+<!-- anchor: output-adapters -->
 ### Output Adapters
 
 | Type | Output | Infrastructure needed |
@@ -233,6 +247,7 @@ automatically becomes Chromecast-castable with zero extra work.
 
 ---
 
+<!-- anchor: architecture-diagram -->
 ## Full Architecture Diagram
 
 ```
@@ -276,8 +291,10 @@ automatically becomes Chromecast-castable with zero extra work.
 
 ---
 
+<!-- anchor: entity-config-schema -->
 ## Entity Config Schema (shared, display-agnostic)
 
+<!-- anchor: rule-semantics -->
 ### Rule evaluation semantics
 
 Rules are evaluated in order; **first match wins** and no further rules are checked.
@@ -290,6 +307,7 @@ If the entity is absent from `hass.states` or its state is `"unavailable"` or
 See the Rule Syntax Reference section for the full `when`/`then` field list, and the
 Thresholds section for the numeric shorthand.
 
+<!-- anchor: info-format-strings -->
 ### Info format strings
 
 Each entity has two optional fields that control what appears in info rows:
@@ -308,6 +326,7 @@ Info strings are built by the solver; ESPHome receives pre-rendered strings.
 `show_info: true` on a rule (or via `defaults`) controls whether the info row is
 included when that rule fires.
 
+<!-- anchor: tiers -->
 ### Tiers (replaces numeric priority)
 
 Urgency is expressed with named tiers rather than integers. The tier list is declared
@@ -332,6 +351,7 @@ the suppression is always "critical only". This replaces the former numeric
 
 Example: security system armed away → hide all `status` and `ambient` glyphs.
 
+<!-- anchor: info-lines -->
 ### Info lines
 
 Multiple entities can have `show_info: true` on a rule simultaneously. The solver
@@ -452,6 +472,7 @@ entities:
 ```
 ---
 
+<!-- anchor: defaults -->
 ## Defaults
 
 A top-level `defaults` block sets baseline behaviour for all entities. Any field can
@@ -470,6 +491,7 @@ with an explicit `when: {state: "unavailable"}` rule.
 
 ---
 
+<!-- anchor: thresholds -->
 ## Thresholds (numeric shorthand for rules)
 
 `thresholds` is sugar for numeric entities that follow a hide-then-escalate pattern.
@@ -496,6 +518,7 @@ Rules:
 
 ---
 
+<!-- anchor: groups -->
 ## Groups
 
 Groups are declared explicitly at the top level. Entities reference them by ID.
@@ -520,6 +543,7 @@ compatible with `collapse: separate`.
 
 ---
 
+<!-- anchor: rule-syntax -->
 ## Rule Syntax Reference
 
 Rules use `when` / `then` to separate match conditions from actions.
@@ -551,6 +575,7 @@ first match wins.
 
 ---
 
+<!-- anchor: glyph-resolution -->
 ## Glyph Resolution
 
 Glyph values in entity configs are **names, not raw unicode codepoints**. The solver
@@ -564,7 +589,7 @@ validatable, and display-target-aware.
 | Material Symbols name | `garage` | Name in the Material Symbols Sharp set; this is what ESPHome compiles in |
 | MDI name | `mdi:garage-open` | Name from the Material Design Icons set; native to HA |
 | Entity inherit | `entity` | Solver reads `hass.entities[entity_id].icon` at runtime and resolves it |
-| Raw unicode | `` | Passed through unchanged; legacy / advanced fallback |
+| Raw unicode | `` | Passed through unchanged; legacy / advanced fallback |
 
 ### Font alignment between ESPHome and canvas
 
@@ -619,6 +644,7 @@ display_profiles:
       - electric_car
 ```
 
+<!-- anchor: idle-glyph -->
 ### `idle_glyph`
 
 The `idle_glyph` field on a display profile follows the same name resolution as entity
@@ -626,6 +652,7 @@ glyphs. It defaults to `"check_circle"` (Material Symbols: verified / all-clear)
 
 ---
 
+<!-- anchor: solver-architecture -->
 ## Solver Architecture Rules
 
 The solver is **pure functions only** — no DOM access, no `hass` references, no side
@@ -633,12 +660,14 @@ effects. This keeps it unit-testable without a browser.
 
 ```
 Input:  EntityConfig[] + Record<string, StateObject> + DisplayProfile + GlyphResolver
+        + current_page: int
 Output: SolverResult {
-  glyphs:       GlyphEntry[]          // resolved glyph codepoint + position + color, one per placed icon
+  glyphs:       GlyphEntry[]          // current page's glyph slice only
   info:         InfoEntry[]           // info-row entries in tier order (may exceed layout.info.max)
   zones:        ZoneEntry[]           // resolved zone indicator shapes with color
   severity_bar: SeverityBarEntry | null  // null when idle and hide_when_idle: true
   layout:       Layout                // the selected layout entry
+  page_count:   int                   // 1 = no overflow; >1 = caller must schedule dwell
 }
 ```
 
@@ -646,6 +675,7 @@ One solver call per display profile per state change. Profiles are independent.
 `GlyphResolver` is a pure lookup function injected into the solver; it maps a glyph
 name + target font to a codepoint string. The solver never performs I/O.
 
+<!-- anchor: solver-pipeline -->
 ### Pipeline (in order)
 
 1. For each entity config: evaluate `rules` / `thresholds` against current state →
@@ -668,7 +698,11 @@ name + target font to a codepoint string. The solver never performs I/O.
    by constraints, then by icon count vs `icon.min/max`, then by info requirement:
    skip layouts with `info.min > 0` when no info is active. Select the first matching
    layout (user-defined order).
-7. If no layout matches, emit `error: true`; do not dispatch.
+7. If `total_visible_icons` exceeds the selected layout's `icon.max` after layout
+   selection, enter page mode: `page_count = ceil(total_visible_icons /
+   layout.icon.max)`. Slice placed entries to `[current_page * icon.max ..
+   (current_page + 1) * icon.max]`. If no layout matches at all (icon count outside
+   every candidate's `[min, max]`), emit `error: true` and do not dispatch.
 8. Compute pixel coordinates. Map `size:` name to px via `glyph_sizes`. Apply burn-in
    offset if `burn_in_drift: true`:
    `x_offset = floor(hour / 23 * margin_px[0])`
@@ -690,6 +724,7 @@ name + target font to a codepoint string. The solver never performs I/O.
 12. If active set is empty after focus mode, emit idle glyph (resolved via GlyphResolver).
 13. Pack into adapter-specific payload.
 
+<!-- anchor: group-placement -->
 ### Group placement
 
 When the placement loop encounters any member of a group for the first time, all
@@ -699,8 +734,84 @@ meaning the column counter advances once for the whole group. Members are drawn 
 insertion order (across all priority buckets); later members visually overwrite
 earlier ones at the same pixel position.
 
+<!-- anchor: icon-page-cycling -->
+### Icon Page Cycling — ESPHome Contract
+
+When `total_visible_icons > layout.icon.max`, the solver does **not** emit
+`error: true`. Instead it partitions the sorted active-entry list into pages of
+`layout.icon.max` entries (ceiling division). The ESPHome service is called with
+only the **current page's** glyph slice — the same `x[]`, `y[]`, `r[]`, `g[]`,
+`b[]`, `glyph[]` arrays as normal, just containing `icon.max` entries instead of
+the full set. ESPHome requires no new parameters and no lambda changes for paging.
+
+`error: true` is reserved for the case where no layout entry matches the icon count
+at all (i.e. `total_visible_icons` falls outside every layout's `[icon.min,
+icon.max]` range after all filtering).
+
+<!-- anchor: icon-page-cycling-solver -->
+### Icon Page Cycling — Solver Pipeline
+
+The solver maintains a **per-profile paging state** object outside the pure solver
+function (in the host layer — AppDaemon app or Lovelace card):
+
+```
+PageState {
+  current_page:   int   // 0-based index of the page currently displayed
+  page_count:     int   // total pages = ceil(total_visible_icons / layout.icon.max)
+  last_active_set_hash: string  // hash of active entry IDs in tier order
+}
+```
+
+On each solver invocation:
+
+1. Run the full solver pipeline (steps 1–13 from `### Pipeline (in order)`).
+2. Compute `page_count = ceil(total_visible_icons / layout.icon.max)`. If
+   `page_count <= 1`, reset `current_page = 0` and skip paging logic.
+3. Compute `active_set_hash` from the ordered list of active entry IDs. If the
+   hash differs from `last_active_set_hash` (content changed), reset
+   `current_page = 0` and restart the dwell timer.
+4. Slice the placed glyph entries: `entries[page * max .. (page+1) * max]`.
+5. Dispatch only the current page's slice to the output adapter.
+6. After dispatch, schedule a dwell callback for `page_dwell_s` seconds that
+   increments `current_page` (wrapping at `page_count`) and re-runs the solver
+   for that profile only.
+
+State changes that arrive during a dwell window cancel the pending callback before
+scheduling a new one. The dwell callback itself does not re-evaluate rules — it
+calls the solver with the same state snapshot and advances only `current_page`.
+
+<!-- anchor: icon-page-cycling-dwell -->
+### Icon Page Cycling — Dwell Timer
+
+`page_dwell_s` is declared in the display profile:
+
+```yaml
+display_profiles:
+  - id: living_room_oled
+    page_dwell_s: 5.0   # seconds per page; default 5.0
+```
+
+The timer is managed by the **host layer**, not the pure solver:
+
+- **AppDaemon (Phase 4):** use `self.run_in(callback, delay)` / `self.cancel_timer`.
+- **Lovelace card (Phase 5):** use `setTimeout` / `clearTimeout` stored per profile
+  in the card's instance state (not in the pure solver module).
+
+The pure solver function receives `current_page: int` as an additional input
+parameter alongside `EntityConfig[]`, `StateObject`, and `DisplayProfile`. It uses
+this to slice the output; it does not manage any timer state itself. This preserves
+the pure-function contract.
+
+SolverResult gains one new field:
+
+```
+page_count: int   // 1 when no overflow; caller uses this to know whether to
+                  // schedule a dwell callback at all
+```
+
 ---
 
+<!-- anchor: severity-bar -->
 ## Severity Bar
 
 The severity bar is a filled edge bar that encodes the overall urgency level of the
@@ -806,6 +917,7 @@ If the bar should anchor to the absolute bottom pixel row regardless of drift, s
 
 ---
 
+<!-- anchor: zone-indicators -->
 ## Zone Indicators
 
 Zone indicators are a parallel rendering layer — ambient peripheral shapes that show
@@ -933,6 +1045,7 @@ its grid glyph and info entries.
 
 ---
 
+<!-- anchor: lovelace-card-requirements -->
 ## Lovelace Custom Card: Technical Requirements
 
 ### API contract (HA-enforced)
@@ -964,8 +1077,10 @@ its grid glyph and info entries.
 
 ---
 
+<!-- anchor: implementation-phases -->
 ## Implementation Phases
 
+<!-- anchor: phase1 -->
 ### Phase 1 — Clean up the ESPHome service contract
 
 The current `set_display_glyphs` service has ~35 parameters. The following are
@@ -973,12 +1088,13 @@ candidates for removal; each requires an ESPHome YAML change and reflash.
 
 | Parameter | Status | Action |
 |---|---|---|
-| `icon_scroll` | Accepted but never read by the display lambda | Remove |
+| `icon_scroll` | Accepted but never read by the display lambda | Remove — superseded by solver-controlled page dwell |
 | `info_glyph_font` | Sent as hardcoded `3` by the solver; never varies | Remove; hardcode font3 in ESPHome lambda |
 | `info_glyph_x[]` | Follows a fixed layout formula; solver computes it | Keep for now — removes a lambda computation but adds complexity |
 | `info_text_x[]` | Same as above | Keep for now |
 | `error` | Useful for debugging; low cost | Keep |
 
+<!-- anchor: phase1-contract-table -->
 **Target contract after Phase 1** (parameters to keep):
 
 ```
@@ -993,9 +1109,14 @@ error
 
 Removed: `icon_scroll`, `info_glyph_font`.
 
+Note: icon page cycling requires **no new ESPHome parameters**. The solver sends
+each page as a normal glyph slice using the existing `x[]`, `y[]`, `glyph[]` etc.
+arrays. Paging state is managed entirely in the solver host layer.
+
 - Document the resulting contract as a stable, versioned API surface
 - No change to display rendering logic beyond removing the two unused parameters
 
+<!-- anchor: phase2 -->
 ### Phase 2 — Standalone Python solver module
 - Port Node-RED JS logic to Python with identical behaviour
 - Input: entity state snapshot + entities config dict + one display profile
@@ -1003,7 +1124,12 @@ Removed: `icon_scroll`, `info_glyph_font`.
 - Fully unit-testable without HA, ESPHome, or a browser
 - Implement `defaults`, `tiers`, `thresholds`, and `layout_constraints` expansion
 - Implement `viewing_distance` preset → `layout_constraints` expansion
+- Implement icon page cycling: partition active set into pages of `layout.icon.max`;
+  accept `current_page` input; return `page_count` in result
+- Implement `page_dwell_s` handling in the AppDaemon host layer (Phase 4 wiring);
+  pure solver function remains stateless
 
+<!-- anchor: phase3 -->
 ### Phase 3 — Multi-display support in Python solver
 - Solver accepts a list of display profiles
 - Runs layout selection independently per profile
@@ -1011,11 +1137,19 @@ Removed: `icon_scroll`, `info_glyph_font`.
 - Validate that two profiles with different `viewing_distance` / `layout_constraints` and `screen_px`
   produce correctly different layouts from the same active set
 
+<!-- anchor: phase4 -->
 ### Phase 4 — Wire to HA via AppDaemon
 - AppDaemon app subscribes to entity state changes reactively (no polling)
 - On change: run solver for all profiles, dispatch all outputs with debounce
 - Validate multi-display pipeline end-to-end before building the card
+- Implement per-profile `PageState` tracking and dwell timer using
+  `self.run_in` / `self.cancel_timer`
+- On state change: cancel pending dwell timer, reset `current_page = 0`,
+  re-run solver, schedule new dwell if `page_count > 1`
+- On dwell expiry: increment `current_page` (wrap at `page_count`), re-run
+  solver for that profile only (no rule re-evaluation — same state snapshot)
 
+<!-- anchor: phase5 -->
 ### Phase 5 — Lovelace Custom Card (`lovelace-display-solver`)
 - Scaffold from `custom-cards/boilerplate-card` (Lit 3 + TypeScript + Rollup)
 - Port Python solver core to TypeScript (pure functions, no DOM)
@@ -1024,7 +1158,11 @@ Removed: `icon_scroll`, `info_glyph_font`.
 - ESPHome adapter calls `hass.callService` directly, replacing AppDaemon
 - Register in HACS as frontend plugin
 - AppDaemon retained as headless/fallback mode
+- Implement per-profile `PageState` in card instance state (not in solver module)
+- Use `setTimeout` / `clearTimeout` for dwell; cancel on every `set hass()` call
+  before re-scheduling
 
+<!-- anchor: phase6 -->
 ### Phase 6 — Cast and PNG targets
 - PNG renderer using Pillow + MDI fonts → HA `www/` static file server
 - Camera entity wraps PNG for dashboard embedding and Chromecast casting
@@ -1032,6 +1170,7 @@ Removed: `icon_scroll`, `info_glyph_font`.
 
 ---
 
+<!-- anchor: esphome-side-keeps -->
 ## What ESPHome Side Keeps
 
 - All sensor hardware (SGP30, SCD4x, PMS5003) — published to HA as today
@@ -1039,6 +1178,7 @@ Removed: `icon_scroll`, `info_glyph_font`.
 - `set_display_glyphs` service — minimal, stable, versioned API surface
 - Brightness/occupancy globals — fed from HA, unchanged
 
+<!-- anchor: moves-out-of-nodered -->
 ## What Moves Out of Node-RED
 
 - Entity state polling loop → reactive `hass` property or AppDaemon `listen_state`
@@ -1049,6 +1189,7 @@ Removed: `icon_scroll`, `info_glyph_font`.
 
 ---
 
+<!-- anchor: external-references -->
 ## Key External References
 
 | Resource | URL |
@@ -1064,6 +1205,7 @@ Removed: `icon_scroll`, `info_glyph_font`.
 
 ---
 
+<!-- anchor: success-criteria -->
 ## Success Criteria
 
 - Adding a new tracked entity = one new YAML stanza, no code changes anywhere
@@ -1077,6 +1219,7 @@ Removed: `icon_scroll`, `info_glyph_font`.
 
 ---
 
+<!-- anchor: step-discipline -->
 ## Step Discipline
 
 Every implementation step follows this multi-agent discipline. All four agents run
@@ -1091,14 +1234,17 @@ for every step; none is optional.
 | **user-review** | Review docs, config schemas, error messages, and help text for user friendliness |
 | **code-review** | Review code for correctness, maintainability, and execution efficiency (memory and speed) |
 
+<!-- anchor: zero-trust-handoff -->
 ### Zero-trust handoff
 
 Each step spec (the per-step `.md` file in `steps/`) is the **sole source of truth**
 passed to every agent working that step. A dev agent implementing step N does not
 inherit any context from the agent that implemented step N-1. The spec must be
 self-contained: it references the relevant sections of `esphome_display_solver_plan.md`
-by line number and describes exactly what is expected.
+by heading anchor (e.g. `anchor: solver-pipeline`) and describes exactly what is
+expected.
 
+<!-- anchor: completion-gate -->
 ### Completion gate
 
 A step is not complete until all four of the following are true:
@@ -1113,6 +1259,7 @@ A step is not complete until all four of the following are true:
 Issues found by any agent — including nits — must be fixed **within the same step**
 before the step closes. No deferred issues.
 
+<!-- anchor: signoff-format -->
 ### Sign-off format
 
 Each reviewing agent ends its final report with one of:
@@ -1124,16 +1271,20 @@ The step does not close until all four agents report `SIGN-OFF: approved`.
 
 ---
 
+<!-- anchor: implementation-steps -->
 ## Implementation Steps
 
 Each step has a dedicated spec file in `steps/`. The spec is the single source of
 truth passed to every agent for that step. It lists deliverables, references the
-relevant sections of this plan by line number, and states any constraints agents
-must respect.
+relevant sections of this plan by **heading anchor** (e.g. `anchor: phase1`), and
+states any constraints agents must respect. Anchors are HTML comments of the form
+`<!-- anchor: name -->` inserted immediately before the referenced heading.
+Line-number references in existing step files should be treated as approximate
+until migrated; anchors are authoritative.
 
 | Step | Spec file | Phase | Description |
 |---|---|---|---|
-| 1 | [steps/step-01-esphome-contract.md](steps/step-01-esphome-contract.md) | Phase 1 | ESPHome service contract cleanup and documentation |
+| 1 | [steps/step-01-esphome-contract.md](steps/step-01-esphome-contract.md) | Phase 1 | ESPHome service contract cleanup, documentation, and icon-paging contract note |
 | 2 | [steps/step-02-python-types-rules.md](steps/step-02-python-types-rules.md) | Phase 2 | Python solver: data types and rule evaluation engine |
 | 3 | [steps/step-03-python-layout-pipeline.md](steps/step-03-python-layout-pipeline.md) | Phase 2–3 | Python solver: layout selection + full pipeline + multi-display |
 | 4 | [steps/step-04-appdaemon.md](steps/step-04-appdaemon.md) | Phase 4 | AppDaemon integration (reactive HA wiring) |
@@ -1142,8 +1293,8 @@ must respect.
 | 7 | [steps/step-07-utilities.md](steps/step-07-utilities.md) | Phase 5 | Utilities: color lookup and glyph resolution (`utils/`) |
 | 8 | [steps/step-08-rules.md](steps/step-08-rules.md) | Phase 5 | Rule evaluation engine (`solver/rules.ts`) |
 | 9 | [steps/step-09-layout.md](steps/step-09-layout.md) | Phase 5 | Layout selection and coordinate computation (`solver/layout.ts`) |
-| 10 | [steps/step-10-solver-pipeline.md](steps/step-10-solver-pipeline.md) | Phase 5 | Solver pipeline core (`solver/index.ts`) |
-| 11 | [steps/step-11-esphome-adapter.md](steps/step-11-esphome-adapter.md) | Phase 5 | ESPHome output adapter (`adapters/esphome.ts`) |
+| 10 | [steps/step-10-solver-pipeline.md](steps/step-10-solver-pipeline.md) | Phase 5 | Solver pipeline core (`solver/index.ts`) including icon page cycling and `page_count` output |
+| 11 | [steps/step-11-esphome-adapter.md](steps/step-11-esphome-adapter.md) | Phase 5 | ESPHome output adapter (`adapters/esphome.ts`) — page-slice packing |
 | 12 | [steps/step-12-canvas-adapter.md](steps/step-12-canvas-adapter.md) | Phase 5 | Canvas output adapter (`adapters/canvas.ts`) |
 | 13 | [steps/step-13-main-card.md](steps/step-13-main-card.md) | Phase 5 | Main Lovelace card element (`display-solver-card.ts`) |
 | 14 | [steps/step-14-editor.md](steps/step-14-editor.md) | Phase 5 | Visual config editor (`editor.ts`) |

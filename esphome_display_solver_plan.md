@@ -103,17 +103,28 @@ second display requires only a new profile stanza, no solver code changes.
 
 ### Viewing Distance → Layout Density
 
-`viewing_distance` is a pre-filter on layout candidates, applied before icon-count
-matching. It encodes the perceptual constraint: how many pixels map to a perceivable
-unit at this distance.
+`viewing_distance` is a shorthand preset that expands into a `layout_constraints` block.
+The constraints are the mechanical filter applied during layout selection; the preset
+just fills them in automatically for common cases. Users can override individual
+constraints without changing the preset.
 
-| Distance | Typical scenario | Effect |
+| Preset | Typical scenario | Expands to |
 |---|---|---|
-| `far` | TV across room, OLED on a shelf | Filter out layouts with `info.min > 0` or `font > 2`; prefer fewer, larger icons |
-| `near` | Wall tablet at arm's length | No filter; full layout table available |
-| `close` | Dashboard card on desk screen | No filter; prefer higher-density layouts |
+| `far` | TV across room, OLED on a shelf | `max_size: medium`, `max_info_rows: 0`, `prefer_fewer_icons: true` |
+| `near` | Wall tablet at arm's length | `max_size: tiny`, `max_info_rows: 4`, `prefer_fewer_icons: false` |
+| `close` | Dashboard card on desk | `max_size: tiny`, `max_info_rows: 6`, `prefer_fewer_icons: false` |
 
-A `far` display will never select a dense layout even if icon count would allow it.
+`layout_constraints` can be written explicitly to express combinations no preset
+covers (e.g. a large display mounted far away):
+
+```yaml
+viewing_distance: far
+layout_constraints:
+  max_info_rows: 2    # override: allow some info even at far distance
+```
+
+The config editor shows the expanded constraints as inline comments when a preset is
+selected, so the effect is always visible without reading documentation.
 
 ### Display Profile Schema
 
@@ -144,16 +155,21 @@ display_profiles:
     screen_px: [128, 128]
     margin_px: [4, 4]       # burn-in drift zone; content never reaches edge pixels
     burn_in_drift: true
-    viewing_distance: far
+    viewing_distance: far   # expands to: max_size: medium, max_info_rows: 0, prefer_fewer_icons: true
     idle_glyph: "check_circle"
+    glyph_sizes:            # named sizes compiled into firmware; solver maps size: name → px
+      large:  {px: 116, fits_cols: 1}
+      medium: {px:  58, fits_cols: 2}
+      small:  {px:  38, fits_cols: 3}
+      tiny:   {px:  30, fits_cols: 4}
     layouts:
-      - icon: {min: 1, max: 1,  font: 1, cols: 1}
+      - icon: {min: 1, max: 1,  size: large,  cols: 1}
         info: {min: 0, max: 0}
-      - icon: {min: 1, max: 4,  font: 2, cols: 2}
+      - icon: {min: 1, max: 4,  size: medium, cols: 2}
         info: {min: 0, max: 0}
-      - icon: {min: 1, max: 4,  font: 4, cols: 4}
+      - icon: {min: 1, max: 4,  size: tiny,   cols: 4}
         info: {min: 2, max: 2}
-      - icon: {min: 1, max: 1,  font: 2, cols: 2}
+      - icon: {min: 1, max: 1,  size: medium, cols: 2}
         info: {min: 1, max: 2}
 
   - id: kitchen_matrix
@@ -164,8 +180,11 @@ display_profiles:
     burn_in_drift: false
     viewing_distance: near
     idle_glyph: "check_circle"
+    glyph_sizes:
+      small: {px: 38, fits_cols: 3}
+      tiny:  {px: 30, fits_cols: 4}
     layouts:
-      - icon: {min: 1, max: 8, font: 3, cols: 8}
+      - icon: {min: 1, max: 8, size: small, cols: 8}
         info: {min: 0, max: 1}
 
   - id: dashboard_card
@@ -175,8 +194,10 @@ display_profiles:
     burn_in_drift: false
     viewing_distance: close
     idle_glyph: "check_circle"
+    glyph_sizes:
+      tiny: {px: 30, fits_cols: 4}
     layouts:
-      - icon: {min: 1, max: 16, font: 4, cols: 4}
+      - icon: {min: 1, max: 16, size: tiny, cols: 4}
         info: {min: 0, max: 3}
 
   - id: living_room_tv
@@ -186,8 +207,10 @@ display_profiles:
     burn_in_drift: false
     viewing_distance: far
     idle_glyph: "check_circle"
+    glyph_sizes:
+      large: {px: 116, fits_cols: 1}
     layouts:
-      - icon: {min: 1, max: 8, font: 1, cols: 8}
+      - icon: {min: 1, max: 8, size: large, cols: 8}
         info: {min: 0, max: 1}
 ```
 
@@ -253,126 +276,273 @@ automatically becomes Chromecast-castable with zero extra work.
 ### Rule evaluation semantics
 
 Rules are evaluated in order; **first match wins** and no further rules are checked.
-`action: hide` terminates evaluation for that entity \u2014 the entity does not appear.
-
-Range matches use **inclusive bounds on both ends**: `{range: [1000, 2000]}` matches
-values where `1000 <= value <= 2000`. When two adjacent ranges share a boundary (e.g.
-`[1000, 2000]` and `[2000, 4500]`), value 2000 matches the first rule encountered and
-evaluation stops there.
-
-`null` as the upper bound means unbounded: `{range: [4500, null]}` matches any value
-`>= 4500`.
+`action: hide` terminates evaluation for that entity — the entity does not appear.
 
 If the entity is absent from `hass.states` or its state is `"unavailable"` or
-`"unknown"`, only rules with `match: {state: "unavailable"}` can match. If no such
-rule exists, the entity is silently skipped.
+`"unknown"`, `defaults.unavailable_action` applies (default: `hide`). An explicit
+`when: {state: "unavailable"}` rule overrides the default for that entity.
+
+See the Rule Syntax Reference section for the full `when`/`then` field list, and the
+Thresholds section for the numeric shorthand.
 
 ### Info format strings
 
-The `info` field on an entity config is a template string. Supported substitutions:
-- `{value}` \u2014 the raw state string
-- `{value:.0f}` \u2014 state parsed as float, formatted with 0 decimal places
-- `{friendly_name}` \u2014 `attributes.friendly_name`
-- `{unit}` \u2014 `attributes.unit_of_measurement`
+Each entity has two optional fields that control what appears in info rows:
+
+- `label` — human-readable name for the entity. Fallback: `attributes.friendly_name`.
+  Override when the HA entity ID or friendly name is ugly.
+- `value_format` — template string for the value portion. Supported substitutions:
+  - `{value}` — raw state string
+  - `{value:.0f}` — state parsed as float, formatted with 0 decimal places
+  - `{unit}` — `attributes.unit_of_measurement`
+
+The rendered info row is `"{value_format} {label}"`. Example: `value_format: "{value:.0f}
+{unit}"` + `label: "CO₂"` → `"1423 ppm CO₂"`.
 
 Info strings are built by the solver; ESPHome receives pre-rendered strings.
+`show_info: true` on a rule (or via `defaults`) controls whether the info row is
+included when that rule fires.
 
-### Priority ceiling
+### Tiers (replaces numeric priority)
 
-An entity rule can carry `priority_ceiling: N`. When that rule fires, the solver
-restricts the active set to priorities 0..N for this solver run, discarding entries
-with priority > N. This implements "focus mode" \u2014 when something critical is
-happening, suppress lower-urgency background icons. Multiple active ceilings take the
-lowest (most restrictive) value.
+Urgency is expressed with named tiers rather than integers. The tier list is declared
+once at the top level; order defines precedence (first = most urgent).
 
-Example: security system armed away \u2192 hide all priority-2 background glyphs.
+```yaml
+tiers:
+  - critical   # shown first; triggers focus_mode suppression when active
+  - alert
+  - status     # normal background icons
+  - ambient    # never suppresses others; always lowest
+```
+
+Rules reference tiers by name: `tier: critical`. Custom tiers can be inserted anywhere
+in the list; all existing rules that reference other tier names continue to work
+unchanged.
+
+**Focus mode** — a rule carrying `focus_mode: true` causes the solver to suppress all
+tiers below `critical` for that run. Multiple active `focus_mode` rules are additive;
+the suppression is always "critical only". This replaces the former numeric
+`priority_ceiling` field.
+
+Example: security system armed away → hide all `status` and `ambient` glyphs.
 
 ### Info lines
 
-Multiple entities can have `include_info: true` active simultaneously. The solver
-collects all active info entries into an ordered array (sorted by priority, then by
-entity order). ESPHome scrolls through them when the count exceeds the layout's
-`info.max`.
+Multiple entities can have `show_info: true` on a rule simultaneously. The solver
+collects all active info entries into an ordered array (sorted by tier, then by entity
+order). ESPHome scrolls through them when the count exceeds the layout's `info.max`.
+
+`show_info` is a per-rule flag — the same entity can expose info at `alert` tier but
+suppress it at `status` tier. The top-level `defaults` block sets the baseline (see
+Defaults section below).
 
 ```yaml
+# ── top-level defaults ────────────────────────────────────────────────────────
+defaults:
+  unavailable_action: hide      # applied to every entity; no per-entity rule needed
+  show_info: true               # show info row at every non-hide tier unless overridden
+  color_scale: [orange, red, purple]   # used by thresholds blocks in order
+
+# ── named tiers (most → least urgent) ─────────────────────────────────────────
+tiers:
+  - critical
+  - alert
+  - status
+  - ambient
+
+# ── entity configs ─────────────────────────────────────────────────────────────
 entities:
-  # Named MSS glyph — straightforward alert entity
+
+  # Boolean alert — straightforward show/hide
   - id: garage_door
     entity_id: binary_sensor.garage_door
-    glyph: "garage"                    # Material Symbols Sharp name
+    glyph: "garage"
     rules:
-      - match: {state: "unavailable"}
-        action: hide
-      - match: {state: "off"}
-        action: hide
-      - match: {state: "on"}
-        action: show
-        priority: 0
-        color: red
+      - when: {state: "off"}
+        then: {action: hide}
+      - when: {state: "on"}
+        then:
+          action: show
+          tier: critical
+          color: red
 
-  # MDI glyph — resolved to MSS equivalent for ESPHome, MDI webfont for canvas
+  # Numeric escalation — thresholds block; colors from defaults.color_scale
   - id: co2
     entity_id: sensor.living_room_co2
     glyph: "mdi:molecule-co2"
-    info: "{value:.0f} ppm {friendly_name}"
-    rules:
-      - match: {range: [0, 1000]}
-        action: hide
-      - match: {range: [1000, 2000]}
-        action: show
-        priority: 1
-        color: orange
-        include_info: true
-      - match: {range: [2000, 4500]}
-        action: show
-        priority: 0
-        color: red
-        include_info: true
-      - match: {range: [4500, null]}
-        action: show
-        priority: 0
-        color: purple
-        include_info: true
+    label: "CO₂"
+    value_format: "{value:.0f} {unit}"   # rendered: "1423 ppm CO₂"
+    thresholds:
+      - above: 1000
+        tier: alert
+      - above: 2000
+        tier: critical
+      - above: 4500
+        tier: critical   # color advances to purple per color_scale
 
-  # Entity-inherit glyph + priority ceiling
+  # Entity-inherit glyph + focus_mode (replaces priority_ceiling)
   - id: security
     entity_id: alarm_control_panel.house
-    glyph: "entity"                    # uses HA's icon for this entity at runtime
+    glyph: "entity"
     rules:
-      - match: {state: "disarmed"}
-        action: hide
-      - match: {state: "armed_away"}
-        action: show
-        priority: 0
-        color: red
-        priority_ceiling: 1            # suppress all priority-2 background icons
+      - when: {state: "disarmed"}
+        then: {action: hide}
+      - when: {state: "armed_away"}
+        then:
+          action: show
+          tier: critical
+          color: red
+          focus_mode: true    # suppresses all tiers below critical while active
+
+  # Cross-entity condition via when.also
+  - id: lock_alert
+    entity_id: lock.front_door
+    glyph: "lock"
+    rules:
+      - when:
+          state: "unlocked"
+          also:
+            - entity: binary_sensor.front_door
+              state: "on"          # door also open → escalate
+        then:
+          tier: critical
+          color: red
+          show_info: true
+      - when: {state: "unlocked"}
+        then:
+          tier: alert
+          color: orange
+      - when: {state: "locked"}
+        then: {action: hide}
 
   # Zone indicator only — never appears in icon grid
   - id: lights_downstairs
     entity_id: light.downstairs
-    zone: downstairs                   # drives the "downstairs" zone slot in each profile
+    zone: downstairs
     rules:
-      - match: {state: "on"}
-        action: indicator              # zone layer only; no grid glyph needed
-        priority: 2
-        color: yellow
+      - when: {state: "on"}
+        then:
+          action: indicator
+          tier: ambient
+          color: yellow
 
-  # Zone indicator AND grid glyph at high-severity threshold
+  # Zone indicator AND grid glyph at fault threshold
   - id: pool_filter
     entity_id: switch.pool_filter
     glyph: "mdi:pool"
     zone: pool_area
     rules:
-      - match: {state: "on"}
-        action: indicator              # normal operation: ambient indicator only
-        priority: 2
-        color: blue
-      - match: {state: "unavailable"}
-        action: show                   # fault: show in grid AND zone
-        indicator: true
-        priority: 0
-        color: red
+      - when: {state: "on"}
+        then:
+          action: indicator   # ambient: zone layer only
+          tier: ambient
+          color: blue
+      - when: {state: "unavailable"}
+        then:
+          action: show        # fault: grid glyph + zone
+          indicator: true
+          tier: critical
+          color: red
 ```
+---
+
+## Defaults
+
+A top-level `defaults` block sets baseline behaviour for all entities. Any field can
+be overridden per entity or per rule.
+
+```yaml
+defaults:
+  unavailable_action: hide      # hide every entity that is unavailable; no per-entity rule needed
+  show_info: true               # include info row at every non-hide tier unless rule says false
+  color_scale: [orange, red, purple]   # assigned to thresholds in order; override per entity
+```
+
+`unavailable_action: hide` eliminates the most commonly forgotten per-entity rule. If
+an entity needs special unavailable handling (e.g. show a fault icon), it can override
+with an explicit `when: {state: "unavailable"}` rule.
+
+---
+
+## Thresholds (numeric shorthand for rules)
+
+`thresholds` is sugar for numeric entities that follow a hide-then-escalate pattern.
+It replaces a sequence of `when: {range: ...}` rules with a compact ascending list.
+
+```yaml
+thresholds:
+  - above: 1000      # hide implied for values below the first entry
+    tier: alert
+  - above: 2000
+    tier: critical
+  - above: 4500
+    tier: critical   # color advances to next in color_scale automatically
+```
+
+Rules:
+- Values below the first `above` threshold → `action: hide` (implicit).
+- Each step only declares what changes from the previous step; unspecified fields
+  inherit from the step above.
+- Colors are assigned from `defaults.color_scale` (or entity-level `color_scale`) in
+  order of threshold steps. An explicit `color:` on a step overrides the auto-assign.
+- The solver validates at load time that all `above` values are strictly increasing.
+- `thresholds` and `rules` are mutually exclusive on a single entity.
+
+---
+
+## Groups
+
+Groups are declared explicitly at the top level. Entities reference them by ID.
+Typos in `group:` on an entity are caught at validation time.
+
+```yaml
+groups:
+  - id: lights
+    collapse: overlay       # all members drawn at same grid cell; last-placed wins visually
+    color_policy: most_urgent   # cell color = color of highest-tier active member
+    # color_policy options: most_urgent | first_active | member (each keeps its own color)
+
+  - id: hvac_zones
+    collapse: separate      # members occupy adjacent cells in insertion order
+    color_policy: member
+```
+
+`collapse: overlay` reproduces the legacy behaviour (same x,y, column advances once
+for the whole group). `collapse: separate` places members in consecutive columns
+without consuming extra layout slots. `color_policy: member` is the only option
+compatible with `collapse: separate`.
+
+---
+
+## Rule Syntax Reference
+
+Rules use `when` / `then` to separate match conditions from actions.
+
+### `when` conditions
+
+| Key | Type | Matches when |
+|---|---|---|
+| `state` | string | entity state equals this value exactly |
+| `range` | `[low, high]` | numeric state within inclusive bounds; `null` = unbounded |
+| `above` | number | numeric state strictly greater than value (use in `thresholds`) |
+| `time_range` | `["HH:MM", "HH:MM"]` | current wall-clock time is within the window |
+| `also` | list of `{entity, state}` | all listed cross-entity conditions must also hold |
+
+`when` conditions on the same rule are all required (AND). Multiple rules are OR —
+first match wins.
+
+### `then` actions
+
+| Key | Values | Notes |
+|---|---|---|
+| `action` | `show` \| `hide` \| `indicator` | `indicator`: zone layer only, no grid glyph |
+| `tier` | tier name | required when action is `show` or `indicator` |
+| `color` | color name | overrides `color_scale` auto-assign |
+| `show_info` | bool | overrides `defaults.show_info` for this rule |
+| `indicator` | bool | also drive zone layer when `action: show` |
+| `focus_mode` | bool | suppress all tiers below `critical` while this rule is active |
+
 
 ---
 
@@ -411,8 +581,12 @@ without an explicit icon use the HA domain default.
 The display profile for an ESPHome target should declare a `font_glyphs` list — the
 set of glyph names compiled into the firmware. The ESPHome adapter warns at config
 time if a resolved glyph is absent from this list; the glyph will render as blank at
-runtime. The `font_glyphs` list does not need to be maintained by hand — it can be
-extracted from the ESPHome YAML by the Phase 1 tooling.
+runtime.
+
+`font_glyphs` does not need to be maintained by hand: the Phase 1 tooling extracts
+it from the ESPHome YAML, and the `glyph_sizes` block in the display profile tells
+the tooling which font sizes to compile. If `glyph_sizes` is present and complete,
+the tooling can regenerate the ESPHome `font:` section entirely.
 
 ```yaml
 display_profiles:
@@ -468,31 +642,38 @@ name + target font to a codepoint string. The solver never performs I/O.
 
 ### Pipeline (in order)
 
-1. For each entity config: evaluate rules against current state → `ActiveEntry | null`
-   - State `"unavailable"` / `"unknown"` / entity absent → match `{state: "unavailable"}`
-     rules only; skip entity if no such rule matches.
+1. For each entity config: evaluate `rules` / `thresholds` against current state →
+   `ActiveEntry | null`.
+   - State `"unavailable"` / `"unknown"` / entity absent → apply `defaults.unavailable_action`
+     (default: hide). Skip entity if action is hide.
+   - Evaluate `when.also` cross-entity conditions using the same state snapshot.
    - Resolve `glyph: "entity"` by reading `hass.entities[entity_id].icon` before
      rule evaluation so the resolved name is available to all rules.
-2. Collect active entries; bucket by priority.
-3. Apply priority ceiling: find the minimum `priority_ceiling` across all active
-   entries; discard entries with priority > that ceiling.
+   - For `thresholds` blocks: find the highest `above` value not exceeded by the state;
+     assign `color` from `defaults.color_scale` in threshold order if not explicitly set.
+2. Collect active entries; bucket by tier using the declared `tiers` order.
+3. Apply focus mode: if any active entry carries `focus_mode: true`, discard all
+   entries whose tier is not `critical`.
 4. Resolve all glyph names to codepoints via `GlyphResolver`. For ESPHome targets,
    warn if the resolved glyph is absent from `font_glyphs`; for canvas/PNG targets,
    note which font to load (MSS or MDI fallback).
 5. Count visible icons (groups collapse to 1 slot regardless of member count).
-6. Filter layout candidates by `viewing_distance`, then by icon count vs `icon.min/max`,
-   then by info requirement: skip layouts with `info.min > 0` when no info is active.
-   Select the first matching layout (user-defined order).
+6. Expand `viewing_distance` preset into `layout_constraints`. Filter layout candidates
+   by constraints, then by icon count vs `icon.min/max`, then by info requirement:
+   skip layouts with `info.min > 0` when no info is active. Select the first matching
+   layout (user-defined order).
 7. If no layout matches, emit `error: true`; do not dispatch.
-8. Compute pixel coordinates. Apply burn-in offset if `burn_in_drift: true`:
+8. Compute pixel coordinates. Map `size:` name to px via `glyph_sizes`. Apply burn-in
+   offset if `burn_in_drift: true`:
    `x_offset = floor(hour / 23 * margin_px[0])`
    `y_offset = floor(minute / 59 * margin_px[1])`
-9. Collect all info lines in priority order. ESPHome will scroll through them if count
-   exceeds `layout.info.max`.
+9. Collect all info lines (entries where `show_info: true` fired) in tier order.
+   Render each line using `value_format` + `label`. ESPHome scrolls through them
+   if count exceeds `layout.info.max`.
 10. Resolve zone indicators: for each zone defined in the profile, find the highest-
-    priority active entry that references that zone and emits an indicator; compute
+    tier active entry that references that zone and emits an indicator; compute
     the shape position in pixels from the zone's fractional position definition.
-11. If active set is empty after ceiling, emit idle glyph (resolved via GlyphResolver).
+11. If active set is empty after focus mode, emit idle glyph (resolved via GlyphResolver).
 12. Pack into adapter-specific payload.
 
 ### Group placement
@@ -522,10 +703,9 @@ thin edge bar on an OLED and a wider strip on a TV dashboard.
 
 ### Zone color
 
-Color = the color of the highest-priority (lowest priority number) active member
-in that zone. Multiple members active at different priorities take the most urgent
-color. If all members are equal priority, the color of the first one encountered is
-used.
+Color = the color of the most urgent (earliest in the `tiers` list) active member
+in that zone. Multiple members active at different tiers take the most urgent color.
+If all members share the same tier, the color of the first one encountered is used.
 
 ### `action: indicator` vs `action: show` + `indicator: true`
 
@@ -582,20 +762,22 @@ entities:
     entity_id: light.downstairs
     zone: downstairs                   # maps to a zone slot in each display profile
     rules:
-      - match: {state: "on"}
-        action: indicator              # zone layer only; never appears in icon grid
-        priority: 2
-        color: yellow
+      - when: {state: "on"}
+        then:
+          action: indicator            # zone layer only; never appears in icon grid
+          tier: ambient
+          color: yellow
 
   - id: pool_filter
     entity_id: switch.pool_filter
     zone: pool_area
     rules:
-      - match: {state: "on"}
-        action: show                   # grid glyph + zone indicator
-        indicator: true
-        priority: 1
-        color: blue
+      - when: {state: "on"}
+        then:
+          action: show                 # grid glyph + zone indicator
+          indicator: true
+          tier: status
+          color: blue
 ```
 
 **Display profile zones section:**
@@ -700,13 +882,14 @@ Removed: `icon_scroll`, `info_glyph_font`.
 - Input: entity state snapshot + entities config dict + one display profile
 - Output: service call payload for that display
 - Fully unit-testable without HA, ESPHome, or a browser
-- Implement `viewing_distance` pre-filter on layout candidates
+- Implement `defaults`, `tiers`, `thresholds`, and `layout_constraints` expansion
+- Implement `viewing_distance` preset → `layout_constraints` expansion
 
 ### Phase 3 — Multi-display support in Python solver
 - Solver accepts a list of display profiles
 - Runs layout selection independently per profile
 - Dispatches to each target's output adapter
-- Validate that two profiles with different `viewing_distance` and `screen_px`
+- Validate that two profiles with different `viewing_distance` / `layout_constraints` and `screen_px`
   produce correctly different layouts from the same active set
 
 ### Phase 4 — Wire to HA via AppDaemon
@@ -766,7 +949,7 @@ Removed: `icon_scroll`, `info_glyph_font`.
 
 - Adding a new tracked entity = one new YAML stanza, no code changes anywhere
 - Adding a new display = one new display profile stanza, no solver code changes
-- Each display independently selects layout based on its own `screen_px` and `viewing_distance`
+- Each display independently selects layout based on its own `screen_px`, `glyph_sizes`, and `layout_constraints`
 - Layout behaviour is fully described in config, not in solver code
 - Solver is independently unit-testable (pure functions, no HA or browser required)
 - The Lovelace card preview is pixel-accurate to what each physical display renders

@@ -1074,3 +1074,77 @@ Removed: `icon_scroll`, `info_glyph_font`.
 - The Lovelace card preview is pixel-accurate to what each physical display renders
 - ESPHome YAML has no entity-specific logic (no hardcoded `if co2 > 1000`)
 - Install path for end users: HACS → Frontend → search "Display Solver" → Download
+
+---
+
+## Step Discipline
+
+Every implementation step follows this multi-agent discipline. All four agents run
+for every step; none is optional.
+
+### Agents
+
+| Agent | Role |
+|---|---|
+| **dev** | Implement the code described in the step spec |
+| **test** | Implement unit and integration tests for all deliverables |
+| **user-review** | Review docs, config schemas, error messages, and help text for user friendliness |
+| **code-review** | Review code for correctness, maintainability, and execution efficiency (memory and speed) |
+
+### Zero-trust handoff
+
+Each step spec (the per-step `.md` file in `steps/`) is the **sole source of truth**
+passed to every agent working that step. A dev agent implementing step N does not
+inherit any context from the agent that implemented step N-1. The spec must be
+self-contained: it references the relevant sections of `esphome_display_solver_plan.md`
+by line number and describes exactly what is expected.
+
+### Completion gate
+
+A step is not complete until all four of the following are true:
+
+1. **dev** has implemented all deliverables listed in the step spec.
+2. **test** has implemented all required tests and they pass with zero failures.
+3. **user-review** has reviewed all user-facing surfaces and signed off (or raised
+   issues that were addressed and re-reviewed).
+4. **code-review** has reviewed quality, maintainability, and efficiency and signed
+   off (or raised issues that were addressed and re-reviewed).
+
+Issues found by any agent — including nits — must be fixed **within the same step**
+before the step closes. No deferred issues.
+
+### Sign-off format
+
+Each reviewing agent ends its final report with one of:
+
+- `SIGN-OFF: approved` — no issues remain
+- `SIGN-OFF: blocked — <one-line reason>` — outstanding issues not yet fixed
+
+The step does not close until all four agents report `SIGN-OFF: approved`.
+
+---
+
+## Implementation Steps
+
+Each step has a dedicated spec file in `steps/`. The spec is the single source of
+truth passed to every agent for that step. It lists deliverables, references the
+relevant sections of this plan by line number, and states any constraints agents
+must respect.
+
+| Step | Spec file | Phase | Description |
+|---|---|---|---|
+| 1 | [steps/step-01-esphome-contract.md](steps/step-01-esphome-contract.md) | Phase 1 | ESPHome service contract cleanup and documentation |
+| 2 | [steps/step-02-python-types-rules.md](steps/step-02-python-types-rules.md) | Phase 2 | Python solver: data types and rule evaluation engine |
+| 3 | [steps/step-03-python-layout-pipeline.md](steps/step-03-python-layout-pipeline.md) | Phase 2–3 | Python solver: layout selection + full pipeline + multi-display |
+| 4 | [steps/step-04-appdaemon.md](steps/step-04-appdaemon.md) | Phase 4 | AppDaemon integration (reactive HA wiring) |
+| 5 | [steps/step-05-ts-scaffold.md](steps/step-05-ts-scaffold.md) | Phase 5 | TypeScript project scaffold (Lit 3 + Rollup + HACS skeleton) |
+| 6 | [steps/step-06-ts-types.md](steps/step-06-ts-types.md) | Phase 5 | TypeScript core interfaces (`solver/types.ts`) |
+| 7 | [steps/step-07-utilities.md](steps/step-07-utilities.md) | Phase 5 | Utilities: color lookup and glyph resolution (`utils/`) |
+| 8 | [steps/step-08-rules.md](steps/step-08-rules.md) | Phase 5 | Rule evaluation engine (`solver/rules.ts`) |
+| 9 | [steps/step-09-layout.md](steps/step-09-layout.md) | Phase 5 | Layout selection and coordinate computation (`solver/layout.ts`) |
+| 10 | [steps/step-10-solver-pipeline.md](steps/step-10-solver-pipeline.md) | Phase 5 | Solver pipeline core (`solver/index.ts`) |
+| 11 | [steps/step-11-esphome-adapter.md](steps/step-11-esphome-adapter.md) | Phase 5 | ESPHome output adapter (`adapters/esphome.ts`) |
+| 12 | [steps/step-12-canvas-adapter.md](steps/step-12-canvas-adapter.md) | Phase 5 | Canvas output adapter (`adapters/canvas.ts`) |
+| 13 | [steps/step-13-main-card.md](steps/step-13-main-card.md) | Phase 5 | Main Lovelace card element (`display-solver-card.ts`) |
+| 14 | [steps/step-14-editor.md](steps/step-14-editor.md) | Phase 5 | Visual config editor (`editor.ts`) |
+| 15 | [steps/step-15-hacs-distribution.md](steps/step-15-hacs-distribution.md) | Phase 5–6 | HACS compliance, README, and release workflow |

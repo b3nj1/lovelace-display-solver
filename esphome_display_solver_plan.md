@@ -1231,8 +1231,8 @@ for every step; none is optional.
 |---|---|
 | **dev** | Implement the code described in the step spec |
 | **test** | Implement unit and integration tests for all deliverables |
-| **user-review** | Review docs, config schemas, error messages, and help text for user friendliness |
-| **code-review** | Review code for correctness, maintainability, and execution efficiency (memory and speed) |
+| **user-review** | Review docs, config schemas, error messages, and help text for user friendliness. Save feedback into reviews/step-XX-user.md |
+| **code-review** | Review code for correctness, maintainability, and execution efficiency (memory and speed). Save feedback into reviews/step-XX.code.md |
 
 <!-- anchor: zero-trust-handoff -->
 ### Zero-trust handoff
@@ -1257,7 +1257,7 @@ A step is not complete until all four of the following are true:
    off (or raised issues that were addressed and re-reviewed).
 
 Issues found by any agent — including nits — must be fixed **within the same step**
-before the step closes. No deferred issues.
+before the step closes. No deferred issues. Report back to owner how many issues were found and fixed at each severity by each reviewer.
 
 <!-- anchor: signoff-format -->
 ### Sign-off format

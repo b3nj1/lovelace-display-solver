@@ -1,0 +1,646 @@
+substitutions:
+  name: living-room-iaq
+  friendly_name: Living Room IAQ
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+ 
+# GPIO22 - Bad connection (burned solder joint)
+# SGP30: is sensitive GPIO19, GPIO18 have had issues; maybe OK; other pins worked better after frequency: 10kHz
+ 
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+ 
+# Enable logging
+logger:
+  #level: WARN
+  #level: ERROR
+  logs:
+    component: ERROR
+    pmsx003: INFO # WARN
+    sgp30: WARN
+    sensor: WARN
+    dht: WARN
+    scd4x: WARN
+ 
+ 
+# Tried BLE, but kept crashing
+#OOM    esp32_ble_tracker: 
+#OOM     bluetooth_proxy: 
+ 
+ 
+globals:
+- id: g_dg_glyph
+  type: 'std::vector<std::string>'
+- id: g_dg_x
+  type:  'std::vector<long int>'
+- id: g_dg_y
+  type:  'std::vector<long int>'
+- id: g_dg_r
+  type:  'std::vector<long int>'
+- id: g_dg_g
+  type:  'std::vector<long int>'
+- id: g_dg_b
+  type:  'std::vector<long int>'
+- id: g_dg_glyph_font
+  type: long int
+- id: g_dg_info_glyph_font
+  type: long int
+- id: g_dg_info_glyph
+  type: 'std::vector<std::string>'
+- id: g_dg_info_text
+  type: 'std::vector<std::string>'
+- id: g_dg_info_glyph_y
+  type:  'std::vector<long int>'
+- id: g_dg_info_glyph_x
+  type:  'std::vector<long int>'
+- id: g_dg_info_glyph_r
+  type:  'std::vector<long int>'
+- id: g_dg_info_glyph_g
+  type:  'std::vector<long int>'
+- id: g_dg_info_glyph_b
+  type:  'std::vector<long int>'
+ 
+- id: g_dg_info_text_y
+  type:  'std::vector<long int>'
+- id: g_dg_info_text_x
+  type:  'std::vector<long int>'
+- id: g_dg_info_text_r
+  type:  'std::vector<long int>'
+- id: g_dg_info_text_g
+  type:  'std::vector<long int>'
+- id: g_dg_info_text_b
+  type:  'std::vector<long int>'
+ 
+- id: g_dg_draw_shape
+  type: 'std::vector<std::string>'
+- id: g_dg_draw_shape_x
+  type:  'std::vector<long int>'
+- id: g_dg_draw_shape_y
+  type:  'std::vector<long int>'
+- id: g_dg_draw_shape_d2
+  type:  'std::vector<long int>'
+- id: g_dg_draw_shape_d3
+  type:  'std::vector<long int>'
+- id: g_dg_draw_shape_r
+  type:  'std::vector<long int>'
+- id: g_dg_draw_shape_g
+  type:  'std::vector<long int>'
+- id: g_dg_draw_shape_b
+  type:  'std::vector<long int>'
+ 
+- id: g_dg_error
+  type: bool
+- id: g_dg_info_scroll
+  type: bool
+- id: g_dg_icon_scroll
+  type: bool
+ 
+- id: page
+  type: int
+  initial_value: "1"
+- id: g_dg_info_index
+  type: int
+ 
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "5cxDJMUAXRsToe0h1M5AUqJ3rHmPW6Lw0Dr/3jnE5ps="
+  services:
+    - service: set_display_glyphs
+      variables:
+        x: int[]
+        y: int[]
+        r: int[]
+        g: int[]
+        b: int[]
+        glyph: string[]
+        glyph_font: int
+        info_glyph_font: int
+        info_glyph: string[]
+        info_glyph_y: int[]
+        info_glyph_x: int[]
+        info_glyph_r: int[]
+        info_glyph_g: int[]
+        info_glyph_b: int[]
+        info_text: string[]
+        info_text_y: int[]
+        info_text_x: int[]
+        info_text_r: int[]
+        info_text_g: int[]
+        info_text_b: int[]
+        info_scroll: bool
+        draw_shape: string[]
+        draw_shape_x: int[]
+        draw_shape_y: int[]
+        draw_shape_d2: int[]
+        draw_shape_d3: int[]
+        draw_shape_r: int[]
+        draw_shape_g: int[]
+        draw_shape_b: int[]
+        icon_scroll: bool
+        error: bool
+      then:
+        - lambda: |-
+            id(g_dg_x) = x;
+            id(g_dg_y) = y;
+            id(g_dg_r) = r;
+            id(g_dg_g) = g;
+            id(g_dg_b) = b;
+            id(g_dg_glyph) = glyph;
+            id(g_dg_glyph_font) = glyph_font;
+            id(g_dg_info_glyph) = info_glyph;
+            id(g_dg_info_glyph_font) = info_glyph_font;
+            id(g_dg_info_glyph_x) = info_glyph_x;
+            id(g_dg_info_glyph_y) = info_glyph_y;
+            id(g_dg_info_glyph_r) = info_glyph_r;
+            id(g_dg_info_glyph_g) = info_glyph_g;
+            id(g_dg_info_glyph_b) = info_glyph_b;
+            id(g_dg_info_text) = info_text;
+            id(g_dg_info_text_x) = info_text_x;
+            id(g_dg_info_text_y) = info_text_y;
+            id(g_dg_info_text_r) = info_text_r;
+            id(g_dg_info_text_g) = info_text_g;
+            id(g_dg_info_text_b) = info_text_b;
+            id(g_dg_draw_shape) = draw_shape;
+            id(g_dg_draw_shape_x) = draw_shape_x;
+            id(g_dg_draw_shape_y) = draw_shape_y;
+            id(g_dg_draw_shape_d2) = draw_shape_d2;
+            id(g_dg_draw_shape_d3) = draw_shape_d3;
+            id(g_dg_draw_shape_r) = draw_shape_r;
+            id(g_dg_draw_shape_g) = draw_shape_g;
+            id(g_dg_draw_shape_b) = draw_shape_b;
+            id(g_dg_info_scroll) = info_scroll;
+            id(g_dg_icon_scroll) = icon_scroll;
+            id(g_dg_error) = error;
+ 
+ota:
+  - platform: esphome
+    password: "b1fc4f3e53a22f8b1493e6b480d9a9df"
+ 
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+ 
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Living-Room-Iaq Fallback Hotspot"
+    password: "P6m5Y6M9z6s0"
+ 
+ 
+captive_portal:
+ 
+#web_server:
+ 
+ 
+ 
+button:
+  - platform: restart
+    name: "Restart"
+ 
+uart: # PMS5003 VCC 5V
+  baud_rate: 9600
+  tx_pin: GPIO14 # RX of PMS5003
+  rx_pin: GPIO33 # TX of PMS5003
+ 
+i2c: # SGP30 VCC 2-5V => #3.3
+  sda: GPIO26 # SDA of SGP30
+  scl: GPIO23 # SCL of SGP30
+  scan: true
+  frequency: 10kHz # try this to avoid "unknown setup issue"
+ 
+sensor:
+  - platform: uptime
+    name: Uptime Sensor
+    update_interval: 300s
+    id: up_for
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+  - platform: pmsx003
+    type: PMSX003
+    pm_1_0:
+      name: "Particulate Matter <1.0µm Concentration"
+    pm_2_5:
+      id: pm_2_5
+      name: "Particulate Matter <2.5µm Concentration"
+    pm_10_0:
+      name: "Particulate Matter <10.0µm Concentration"
+    update_interval: 90s
+  - platform: sgp30
+    eco2:
+      name: "eCO2"
+      id: eco2
+      accuracy_decimals: 0
+      filters:
+        - sliding_window_moving_average:
+            window_size: 60
+            send_every: 60
+            send_first_at: 60
+    tvoc:
+      name: "TVOC"
+      accuracy_decimals: 0
+      filters:
+        - sliding_window_moving_average:
+            window_size: 60
+            send_every: 60
+            send_first_at: 60
+ 
+    store_baseline: yes
+    address: 0x58
+    update_interval: 1s
+    baseline:
+      eco2_baseline: 0x8980
+      tvoc_baseline: 0x9664
+    eco2_baseline:
+      name: "eCO2 baseline"
+      accuracy_decimals: 0
+      state_class: "measurement"
+ 
+    tvoc_baseline:
+      name: "TVOC baseline"
+      accuracy_decimals: 0  
+      state_class: "measurement"
+    compensation:
+      temperature_source: temperature
+      humidity_source: humidity
+ 
+  - platform: scd4x
+    update_interval: 5s
+    measurement_mode: periodic
+    co2:
+      name: "Carbon Dioxide"
+      accuracy_decimals: 0
+      filters:
+        - skip_initial: 30
+        - sliding_window_moving_average:
+            window_size: 12
+            send_every: 12
+            send_first_at: 12
+    temperature:
+      name: "Temperature"
+      id: temperature
+      accuracy_decimals: 1
+      filters:
+        - skip_initial: 30
+        - offset: -1.65
+        - sliding_window_moving_average:
+            window_size: 12
+            send_every: 12
+            send_first_at: 12
+ 
+    humidity:
+      name: "Humidity"
+      id: humidity
+      accuracy_decimals: 1
+      filters:
+        - skip_initial: 30
+        - offset: +8
+        - sliding_window_moving_average:
+            window_size: 12
+            send_every: 12
+            send_first_at: 12
+ 
+  
+  # - platform: dht # VCC 3.3
+  #   pin: GPIO13 # DHT Data
+  #   model: AM2302
+  #   temperature:
+  #     name: "Temperature"
+  #     id: dht_temperature
+  #     filters:
+  #       - offset: -2.25
+ 
+  #   humidity:
+  #     name: "Relative Humidity"
+  #     id: dht_humidity
+  #     filters:
+  #       - offset: +3
+  #   update_interval: 60s
+ 
+ 
+image:
+  - file: mdi:lightbulb
+    id: lightbulb
+    resize: 20x20
+    type: grayscale
+  - file: mdi:outdoor-lamp
+    id: outdoor_light
+    resize: 20x20
+    type: grayscale
+    
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 16
+    glyphs: ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z', '/', "'"]
+  - file: 'gfonts://Material+Symbols+Sharp'
+    id: icon_font_top
+    size: 20 
+    glyphs: 
+      - "\U0000e518" # light
+ 
+  - file: 'gfonts://Material+Symbols+Sharp'
+    id: icon_font4
+    size: 30 # 4 syms (with ~1/2 to spare)
+    glyphs: 
+      - "\U0000e714" #  garage - red
+      - "\U0000e77c" #  door - red
+      - "\U0000e898" #  lock - red
+      - "\U0000e9e0" #  shield - red
+      - "\U0000e786" #  home sheild - green
+ 
+      - "\U0000e798" #  water drop - blue
+      - "\U0000ea47" #  grill - orange
+      
+      - "\U0000eb48" #  pool - blue
+      - "\U0000e284" #  pool heat - orange
+      
+      - "\U0000e7b0" #  co2 - orange
+      - "\U0000f55b" #  aq indoor - orange
+      - "\U0000ebbc" #  factory - orange
+      - "\U0000f168" #  fan - blue
+      - "\U0000e88a" # house
+      - "\U0000e518" # light
+ 
+      - "\U0000f10e" # hvac
+ 
+      - "\U0000f6fe" # step over
+      - "\U0000f700" # step in
+      - "\U0000f701" # step out
+ 
+      - "\U0000e5c5" # arrow drop down
+      - "\U0000f1e3" # south
+      - "\U0000e5db" # arrow downward
+      - "\U0000e984" # arrow downward alt
+      - "\U0000e258" # vertical align bottom
+ 
+      - "\U0000e5c7" # arrow drop up
+      - "\U0000f1e0" # north
+      - "\U0000e5d8" # arrow upward
+      - "\U0000e986" # arrow upward alt
+      - "\U0000e25a" # vertical align bottom
+ 
+      - "\U0000ef4a" # circle
+      - "\U0000eb36" # square
+      - "\U0000f78e" # align justify between
+ 
+      - "\U0000e7f2" # OK
+      - "\U0000eb47" # refrigerator
+ 
+      - "\U0000e209" # EV
+ 
+  - file: 'gfonts://Material+Symbols+Sharp'
+    id: icon_font3
+    size: 38
+    glyphs: 
+      - "\U0000e714" #  garage - red
+      - "\U0000e77c" #  door - red
+      - "\U0000e898" #  lock - red
+      - "\U0000e9e0" #  shield - red
+      - "\U0000e786" #  home sheild - green
+ 
+      - "\U0000e798" #  water drop - blue
+      - "\U0000ea47" #  grill - orange
+      
+      - "\U0000eb48" #  pool - blue
+      - "\U0000e284" #  pool heat - orange
+      
+      - "\U0000e7b0" #  co2 - orange
+      - "\U0000f55b" #  aq indoor - orange
+      - "\U0000ebbc" #  factory - orange
+      - "\U0000f168" #  fan - blue
+      - "\U0000e88a" # house
+      - "\U0000e518" # light
+      - "\U0000f10e" # hvac
+ 
+      - "\U0000f6fe" # step over
+      - "\U0000f700" # step in
+      - "\U0000f701" # step out
+      - "\U0000e5c5" # arrow drop down
+      - "\U0000f1e3" # south
+      - "\U0000e5db" # arrow downward
+      - "\U0000e984" # arrow downward alt
+      - "\U0000e258" # vertical align bottom
+ 
+      - "\U0000e5c7" # arrow drop up
+      - "\U0000f1e0" # north
+      - "\U0000e5d8" # arrow upward
+      - "\U0000e986" # arrow upward alt
+      - "\U0000e25a" # vertical align bottom
+ 
+      - "\U0000ef4a" # circle
+      - "\U0000eb36" # square
+      - "\U0000f78e" # align justify between
+ 
+      - "\U0000e7f2" # OK
+      - "\U0000eb47" # refrigerator
+      - "\U0000e209" # EV
+ 
+  - file: 'gfonts://Material+Symbols+Sharp'
+    id: icon_font2
+    size: 58
+    glyphs: 
+      - "\U0000e714" #  garage - red
+      - "\U0000e77c" #  door - red
+      - "\U0000e898" #  lock - red
+      - "\U0000e9e0" #  shield - red
+      - "\U0000e786" #  home sheild - green
+ 
+      - "\U0000e798" #  water drop - blue
+      - "\U0000ea47" #  grill - orange
+      
+      - "\U0000eb48" #  pool - blue
+      - "\U0000e284" #  pool heat - orange
+      
+      - "\U0000e7b0" #  co2 - orange
+      - "\U0000f55b" #  aq indoor - orange
+      - "\U0000ebbc" #  factory - orange
+      - "\U0000f168" #  fan - blue
+      - "\U0000e88a" # house
+      - "\U0000e518" # light
+      - "\U0000f10e" # hvac
+      - "\U0000f6fe" # step over
+      - "\U0000f700" # step in
+      - "\U0000f701" # step out
+      - "\U0000e5c5" # arrow drop down
+      - "\U0000f1e3" # south
+      - "\U0000e5db" # arrow downward
+      - "\U0000e984" # arrow downward alt
+      - "\U0000e258" # vertical align bottom
+ 
+      - "\U0000e5c7" # arrow drop up
+      - "\U0000f1e0" # north
+      - "\U0000e5d8" # arrow upward
+      - "\U0000e986" # arrow upward alt
+      - "\U0000e25a" # vertical align bottom
+ 
+      - "\U0000ef4a" # circle
+      - "\U0000eb36" # square
+      - "\U0000f78e" # align justify between
+ 
+      - "\U0000e7f2" # OK
+      - "\U0000eb47" # refrigerator
+      - "\U0000e209" # EV
+ 
+  - file: 'gfonts://Material+Symbols+Sharp'
+    id: icon_font1
+    size: 116
+    glyphs: 
+      - "\U0000e714" #  garage - red
+      - "\U0000e77c" #  door - red
+      - "\U0000e898" #  lock - red
+      - "\U0000e9e0" #  shield - red
+      - "\U0000e786" #  home sheild - green
+ 
+      - "\U0000e798" #  water drop - blue
+      - "\U0000ea47" #  grill - orange
+      
+      - "\U0000eb48" #  pool - blue
+      - "\U0000e284" #  pool heat - orange
+      
+      - "\U0000e7b0" #  co2 - orange
+      - "\U0000f55b" #  aq indoor - orange
+      - "\U0000ebbc" #  factory - orange
+      - "\U0000f168" #  fan - blue
+      - "\U0000e88a" # house
+      - "\U0000e518" # light
+      - "\U0000f10e" # hvac
+      - "\U0000f6fe" # step over
+      - "\U0000f700" # step in
+      - "\U0000f701" # step out
+      - "\U0000e5c5" # arrow drop down
+      - "\U0000f1e3" # south
+      - "\U0000e5db" # arrow downward
+      - "\U0000e984" # arrow downward alt
+      - "\U0000e258" # vertical align bottom
+ 
+      - "\U0000e5c7" # arrow drop up
+      - "\U0000f1e0" # north
+      - "\U0000e5d8" # arrow upward
+      - "\U0000e986" # arrow upward alt
+      - "\U0000e25a" # vertical align bottom
+ 
+      - "\U0000ef4a" # circle
+      - "\U0000eb36" # square
+      - "\U0000f78e" # align justify between
+ 
+      - "\U0000e7f2" # OK
+      - "\U0000eb47" # refrigerator
+      - "\U0000e209" # EV
+ 
+spi:
+     clk_pin: GPIO27 # SCK of display
+     mosi_pin: GPIO25 # SDA of display
+ 
+display:
+  - platform: ssd1351_spi # VCC 3 or 5: 3V
+    model: "SSD1351 128x128"
+    reset_pin: GPIO16 # RESET of display
+    cs_pin: GPIO21 # CS of display
+    dc_pin: GPIO17 # DC of display
+    update_interval: 2500ms
+    lambda: |-
+          if(id(g_dg_error)) {
+            it.rectangle(0, 60, 128, 10, id(my_red));
+          }
+          switch (id(page)){
+            case 1:
+              for(int i = 0 ; i < id(g_dg_draw_shape).size(); i++) {
+                auto scol = Color(id(g_dg_draw_shape_r)[i], id(g_dg_draw_shape_g)[i], id(g_dg_draw_shape_b)[i]);
+ 
+                if (id(g_dg_draw_shape)[i] == "rectangle") { 
+                  it.rectangle(id(g_dg_draw_shape_x)[i], id(g_dg_draw_shape_y)[i], id(g_dg_draw_shape_d2)[i], id(g_dg_draw_shape_d3)[i], scol);
+                } else if (id(g_dg_draw_shape)[i] == "filled_rectangle") { 
+                  it.filled_rectangle(id(g_dg_draw_shape_x)[i], id(g_dg_draw_shape_y)[i], id(g_dg_draw_shape_d2)[i], id(g_dg_draw_shape_d3)[i], scol);
+                } else if (id(g_dg_draw_shape)[i] == "circle") { 
+                  it.circle(id(g_dg_draw_shape_x)[i], id(g_dg_draw_shape_y)[i], id(g_dg_draw_shape_d2)[i], scol);
+                } else if (id(g_dg_draw_shape)[i] == "filled_circle") { 
+                  it.filled_circle(id(g_dg_draw_shape_x)[i], id(g_dg_draw_shape_y)[i], id(g_dg_draw_shape_d2)[i], scol);
+                }
+              }
+ 
+              auto font = id(icon_font4);
+              if (id(g_dg_glyph_font) == 4) {
+                font = id(icon_font4);
+              } else if (id(g_dg_glyph_font) == 3) {
+                font = id(icon_font3);
+              } else if (id(g_dg_glyph_font) == 2) {
+                font = id(icon_font2);
+              } else if (id(g_dg_glyph_font) <= 1) {
+                font = id(icon_font1);
+              }
+              for(int i = 0 ; i < id(g_dg_glyph).size(); i++) {
+                it.print(id(g_dg_x)[i], id(g_dg_y)[i], font, Color(id(g_dg_r)[i], id(g_dg_g)[i], id(g_dg_b)[i]), id(g_dg_glyph)[i].c_str());
+              }
+              // info handling
+              auto info_glyph_font = id(icon_font4);
+              if (id(g_dg_info_glyph_font) == 4) {
+                info_glyph_font = id(icon_font4);
+              } else if (id(g_dg_info_glyph_font) == 3) {
+                info_glyph_font = id(icon_font3);
+              } else if (id(g_dg_info_glyph_font) == 2) {
+                info_glyph_font = id(icon_font2);
+              } else if (id(g_dg_info_glyph_font) <= 1) {
+                info_glyph_font = id(icon_font1);
+              }
+ 
+              int info_i = id(g_dg_info_index);
+              if (id(g_dg_info_text).size() <= id(g_dg_info_text_y).size()) {
+                info_i = 0;
+              }
+              int info_last = info_i;
+              int info_rows = id(g_dg_info_text_y).size();
+              for(int i = 0; i < info_rows; i++) {
+                if(info_i >= id(g_dg_info_text).size()) { info_i = 0; }
+                it.print(id(g_dg_info_text_x)[i], id(g_dg_info_text_y)[i], id(roboto),
+                 Color(id(g_dg_info_text_r)[info_i], id(g_dg_info_text_g)[info_i], id(g_dg_info_text_b)[info_i]),
+                 id(g_dg_info_text)[info_i].c_str());
+                it.print(id(g_dg_info_glyph_x)[i], id(g_dg_info_glyph_y)[i], info_glyph_font,
+                 Color(id(g_dg_info_glyph_r)[info_i], id(g_dg_info_glyph_g)[info_i], id(g_dg_info_glyph_b)[info_i]),
+                 id(g_dg_info_glyph)[info_i].c_str());
+                info_last = info_i;
+                info_i++;
+              }
+              if(id(g_dg_info_scroll) and info_rows > 1) {
+                  id(g_dg_info_index) = info_last;
+              } else {
+                  id(g_dg_info_index) = info_i;
+              }
+              break;
+          }
+ 
+ 
+ 
+interval:
+- interval: 2s
+  then:
+    - lambda: |-
+        id(page) = (id(page) + 1);
+        if (id(page) > 1) {
+          id(page) = 1;
+        }
+ 
+color:
+  - id: my_blue
+    blue: 100%
+  - id: my_red
+    red: 100%
+  - id: my_orange
+    red: 100%
+    green: 50%
+  - id: my_green
+    green: 100%
+  - id: my_white
+    red: 100%
+    blue: 100%
+    green: 100%
+  - id: my_yellow
+    hex: ffeeaa

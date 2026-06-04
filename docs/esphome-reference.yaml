@@ -1,0 +1,271 @@
+# ESPHome Reference YAML — display-solver v1.0
+#
+# This file shows the complete api: services: block for set_display_glyphs
+# and a matching display: lambda skeleton that reads from the stored globals.
+#
+# Replace "living_room_iaq" with your actual ESPHome device name.
+# Replace font references (font1, font2, font3) with the id: values you
+# declared in your fonts: section.
+
+# ---------------------------------------------------------------------------
+# API service declaration
+# ---------------------------------------------------------------------------
+api:
+  services:
+    - service: set_display_glyphs
+      variables:
+        # ── Icon glyph arrays ───────────────────────────────────────────────
+        # Pixel coordinates and colour for each icon on the current page.
+        # All icon arrays must be the same length on every call.
+        x: "std::vector<int>"           # X pixel coordinate (top-left) of each icon
+        y: "std::vector<int>"           # Y pixel coordinate (top-left) of each icon
+        r: "std::vector<int>"           # Red channel 0–255 of each icon
+        g: "std::vector<int>"           # Green channel 0–255 of each icon
+        b: "std::vector<int>"           # Blue channel 0–255 of each icon
+        glyph: "std::vector<int>"       # Material Symbols Sharp codepoint for each icon
+        glyph_font: int                 # Font index for all icon glyphs (e.g. 2 → 58px font)
+
+        # ── Info glyph arrays ───────────────────────────────────────────────
+        # Small inline glyph shown to the left of each info text line.
+        # All info_glyph arrays must be the same length on every call.
+        info_glyph: "std::vector<int>"    # Codepoint of each info-row glyph
+        info_glyph_y: "std::vector<int>"  # Y pixel coordinate of each info-row glyph
+        info_glyph_x: "std::vector<int>"  # X pixel coordinate of each info-row glyph
+        info_glyph_r: "std::vector<int>"  # Red channel 0–255 of each info-row glyph
+        info_glyph_g: "std::vector<int>"  # Green channel 0–255 of each info-row glyph
+        info_glyph_b: "std::vector<int>"  # Blue channel 0–255 of each info-row glyph
+
+        # ── Info text arrays ────────────────────────────────────────────────
+        # Pre-rendered human-readable strings (e.g. "1423 ppm CO₂").
+        # All info_text arrays must be the same length on every call.
+        info_text: "std::vector<std::string>"  # Rendered info line string
+        info_text_y: "std::vector<int>"        # Y pixel coordinate of each line
+        info_text_x: "std::vector<int>"        # X pixel coordinate of each line
+        info_text_r: "std::vector<int>"        # Red channel 0–255 of each line
+        info_text_g: "std::vector<int>"        # Green channel 0–255 of each line
+        info_text_b: "std::vector<int>"        # Blue channel 0–255 of each line
+
+        # ── Info scroll ─────────────────────────────────────────────────────
+        info_scroll: bool               # True → ESPHome scrolls info lines through the display area
+
+        # ── Draw shape arrays ───────────────────────────────────────────────
+        # Zone indicators and the severity bar are packed here as shape entries.
+        # All draw_shape arrays must be the same length as each other on every
+        # call (independent of the icon/info array lengths).
+        #
+        # Shape type codes:
+        #   0 = filled_rectangle  (d2=width, d3=height)
+        #   1 = circle            (d2=radius, d3 unused — set to 0)
+        #   2 = filled_circle     (d2=radius, d3 unused — set to 0)
+        draw_shape: "std::vector<int>"    # Shape type code (see above)
+        draw_shape_x: "std::vector<int>"  # X coordinate (top-left for rects, center for circles)
+        draw_shape_y: "std::vector<int>"  # Y coordinate (top-left for rects, center for circles)
+        draw_shape_d2: "std::vector<int>" # Width (rect) or radius (circle) in pixels
+        draw_shape_d3: "std::vector<int>" # Height in pixels (rect); set 0 for circles
+        draw_shape_r: "std::vector<int>"  # Red channel 0–255
+        draw_shape_g: "std::vector<int>"  # Green channel 0–255
+        draw_shape_b: "std::vector<int>"  # Blue channel 0–255
+
+        # ── Diagnostics ─────────────────────────────────────────────────────
+        error: bool                     # True when the solver found no matching layout
+
+      then:
+        # Store all incoming arrays and scalars into globals so the display
+        # lambda can read them on each render cycle.
+        - lambda: |-
+            id(g_x) = x;
+            id(g_y) = y;
+            id(g_r) = r;
+            id(g_g) = g;
+            id(g_b) = b;
+            id(g_glyph) = glyph;
+            id(g_glyph_font) = glyph_font;
+
+            id(g_info_glyph) = info_glyph;
+            id(g_info_glyph_y) = info_glyph_y;
+            id(g_info_glyph_x) = info_glyph_x;
+            id(g_info_glyph_r) = info_glyph_r;
+            id(g_info_glyph_g) = info_glyph_g;
+            id(g_info_glyph_b) = info_glyph_b;
+
+            id(g_info_text) = info_text;
+            id(g_info_text_y) = info_text_y;
+            id(g_info_text_x) = info_text_x;
+            id(g_info_text_r) = info_text_r;
+            id(g_info_text_g) = info_text_g;
+            id(g_info_text_b) = info_text_b;
+
+            id(g_info_scroll) = info_scroll;
+
+            id(g_draw_shape) = draw_shape;
+            id(g_draw_shape_x) = draw_shape_x;
+            id(g_draw_shape_y) = draw_shape_y;
+            id(g_draw_shape_d2) = draw_shape_d2;
+            id(g_draw_shape_d3) = draw_shape_d3;
+            id(g_draw_shape_r) = draw_shape_r;
+            id(g_draw_shape_g) = draw_shape_g;
+            id(g_draw_shape_b) = draw_shape_b;
+
+            id(g_error) = error;
+
+# ---------------------------------------------------------------------------
+# Global variable declarations
+# (Declare one global per service parameter to persist between display cycles)
+# ---------------------------------------------------------------------------
+globals:
+  - id: g_x
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_y
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_r
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_g
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_b
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_glyph
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_glyph_font
+    type: int
+    restore_value: false
+    initial_value: "2"
+
+  - id: g_info_glyph
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_glyph_y
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_glyph_x
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_glyph_r
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_glyph_g
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_glyph_b
+    type: "std::vector<int>"
+    restore_value: false
+
+  - id: g_info_text
+    type: "std::vector<std::string>"
+    restore_value: false
+  - id: g_info_text_y
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_text_x
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_text_r
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_text_g
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_info_text_b
+    type: "std::vector<int>"
+    restore_value: false
+
+  - id: g_info_scroll
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  - id: g_draw_shape
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_x
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_y
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_d2
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_d3
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_r
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_g
+    type: "std::vector<int>"
+    restore_value: false
+  - id: g_draw_shape_b
+    type: "std::vector<int>"
+    restore_value: false
+
+  - id: g_error
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+# ---------------------------------------------------------------------------
+# Display lambda
+# (Reads from globals on each render cycle; no display-side layout logic)
+# ---------------------------------------------------------------------------
+display:
+  - platform: ssd1351_spi   # replace with your display platform
+    # ... (cs_pin, dc_pin, reset_pin, etc.) ...
+    lambda: |-
+      it.fill(Color::BLACK);
+
+      if (id(g_error)) {
+        // TODO: render an error indicator on screen
+        return;
+      }
+
+      // Draw icon glyphs for the current page slice.
+      // The solver sends only the current page's entries; no paging logic needed here.
+      for (int i = 0; i < id(g_glyph).size(); i++) {
+        // font selection: use g_glyph_font to pick from your compiled font array.
+        // Example stub — replace with actual font lookup for your configuration:
+        //   auto *fnt = (id(g_glyph_font) == 1) ? font1 : font2;
+        //   it.printf(id(g_x)[i], id(g_y)[i], fnt,
+        //             Color(id(g_r)[i], id(g_g)[i], id(g_b)[i]),
+        //             "%s", (const char*)&id(g_glyph)[i]);
+      }
+
+      // Draw info-row glyphs.
+      // font3 is hardcoded here (info_glyph_font was removed in v1.0).
+      for (int i = 0; i < id(g_info_glyph).size(); i++) {
+        // it.printf(id(g_info_glyph_x)[i], id(g_info_glyph_y)[i], font3,
+        //           Color(id(g_info_glyph_r)[i], id(g_info_glyph_g)[i], id(g_info_glyph_b)[i]),
+        //           "%s", (const char*)&id(g_info_glyph)[i]);
+      }
+
+      // Draw info text lines.
+      for (int i = 0; i < id(g_info_text).size(); i++) {
+        // it.printf(id(g_info_text_x)[i], id(g_info_text_y)[i], font3,
+        //           Color(id(g_info_text_r)[i], id(g_info_text_g)[i], id(g_info_text_b)[i]),
+        //           "%s", id(g_info_text)[i].c_str());
+      }
+
+      // Draw shapes (zone indicators, severity bar).
+      for (int i = 0; i < id(g_draw_shape).size(); i++) {
+        Color c(id(g_draw_shape_r)[i], id(g_draw_shape_g)[i], id(g_draw_shape_b)[i]);
+        int sx = id(g_draw_shape_x)[i];
+        int sy = id(g_draw_shape_y)[i];
+        int d2 = id(g_draw_shape_d2)[i];
+        int d3 = id(g_draw_shape_d3)[i];
+        switch (id(g_draw_shape)[i]) {
+          case 0:  // filled_rectangle
+            it.filled_rectangle(sx, sy, d2, d3, c);
+            break;
+          case 1:  // circle
+            it.circle(sx, sy, d2, c);
+            break;
+          case 2:  // filled_circle
+            it.filled_circle(sx, sy, d2, c);
+            break;
+        }
+      }

@@ -35,6 +35,15 @@ These URLs must be fetched and read before touching the relevant layer:
 
 ---
 
+## Legacy implementation
+
+legacy_hacked_display_solver is provided for reference. It is the existing
+hacky solution I'm using which is a messy set of functions in Node Red and a
+messy interface onto ESPHome. It is not to be modified. It is not part of our
+final code and will be deleted before shipping.
+
+---
+
 ## Toolchain
 
 | Tool | Version constraint | Reason |
@@ -181,7 +190,13 @@ side effects. This keeps it unit-testable without a browser.
 
 ```
 Input:  EntityConfig[] + Record<string,StateObject> + DisplayProfile + GlyphResolver
-Output: SolverResult { glyphs: GlyphEntry[], info: InfoEntry[], zones: ZoneEntry[], layout: Layout }
+Output: SolverResult {
+  glyphs:       GlyphEntry[]
+  info:         InfoEntry[]
+  zones:        ZoneEntry[]
+  severity_bar: SeverityBarEntry | null   // null when idle and hide_when_idle: true
+  layout:       Layout
+}
 ```
 
 One solver call per display profile per state change. Profiles are independent —
@@ -195,29 +210,35 @@ a change in active icon count on one display does not affect another.
 - Raw unicode — passed through unchanged (legacy fallback)
 
 ### Solver pipeline (in order)
-1. For each entity config: evaluate rules against current state → `ActiveEntry | null`
-   - Missing / unavailable / unknown state: match `{state: "unavailable"}` rules only;
-     skip entity if no such rule matches.
+1. For each entity config: evaluate rules / thresholds against current state →
+   `ActiveEntry | null`
+   - Missing / unavailable / unknown state: apply `defaults.unavailable_action`
+     (default: hide). An explicit `when: {state: "unavailable"}` rule overrides it.
    - Resolve `glyph: "entity"` before rule evaluation.
-2. Collect active entries; bucket by priority (0 = highest urgency)
-3. Apply priority ceiling: minimum `priority_ceiling` across active entries clamps the
-   effective range; discard entries with priority above the ceiling.
+2. Collect active entries; bucket by tier using the declared `tiers` order.
+3. Apply focus mode: if any active entry carries `focus_mode: true`, discard all
+   entries whose tier is not `critical`.
 4. Resolve all glyph names to codepoints via GlyphResolver. Warn if a glyph is absent
    from the profile's `font_glyphs` list on ESPHome targets.
 5. Count visible icons (groups collapse to 1 slot regardless of member count)
-6. Filter layout candidates by `viewing_distance` first, then icon count, then info
-   row requirement (`info.min`); select first matching layout
+6. Expand `viewing_distance` preset into `layout_constraints`. Filter layout
+   candidates by constraints, then icon count (`icon.min/max`), then info requirement
+   (skip layouts with `info.min > 0` when no info is active); select first match.
 7. Compute pixel coordinates; apply burn-in offset if `burn_in_drift: true`
-8. Collect all info lines in priority order (ESPHome scrolls if count > `info.max`)
-9. Resolve zone indicators: highest-priority active entry per zone → shape + color
-10. If active set is empty, emit idle glyph (resolved via GlyphResolver)
-11. Pack into adapter-specific payload
+8. Collect all info lines in tier order (ESPHome scrolls if count > `info.max`)
+9. Resolve zone indicators: highest-tier active entry per zone → shape + color
+10. Compute severity bar (if `severity_bar` is configured on the profile):
+    `fill_ratio = (N - tier_index) / N` where N = len(tiers) and tier_index is the
+    0-based position of the highest active tier. Color = resolved color of the
+    highest-priority active entry. Emit `SeverityBarEntry` or `null` when idle.
+11. If active set is empty, emit idle glyph (resolved via GlyphResolver)
+12. Pack into adapter-specific payload
 
 ---
 
 ## Display Profile Rules
 
-- `viewing_distance: far` — filter OUT any layout with `info.min > 0` or `icon.font > 2`
+- `viewing_distance: far` — filter OUT any layout with `info.min > 0`
 - `viewing_distance: near` — no filter, use full layout table
 - `viewing_distance: close` — no filter, prefer higher-density layouts first
 
@@ -228,6 +249,29 @@ this layout) and `max` (info rows allocated on screen; ESPHome scrolls overflow)
 
 `burn_in_drift: true` on a profile enables time-based pixel drift within `margin_px`
 to prevent OLED burn-in. ESPHome-targeted profiles should set both.
+
+### Severity bar
+
+Optional per-profile. Renders a filled bar along one edge whose length encodes the
+highest active tier and whose color tracks the highest-priority active entry.
+
+```yaml
+severity_bar:
+  edge: bottom          # top | bottom | left | right
+  thickness_px: 4       # depth perpendicular to edge, in pixels
+  color: entity         # 'entity' = color of highest-priority active entry, or a color name
+  hide_when_idle: true  # default true; omit shape when active set is empty
+```
+
+Fill ratio formula: `(N - tier_index) / N` where N = total tiers, tier_index = 0-based
+index of the highest active tier (0 = most urgent). Idle → ratio = 0.
+
+Bar grows from the start end of the edge (left-to-right for horizontal edges,
+top-to-bottom for vertical). The bar is positioned inside `margin_px`, so it drifts
+with content when `burn_in_drift: true`.
+
+ESPHome encoding: one `filled_rectangle` entry in the existing `draw_shape` arrays.
+No new service parameters.
 
 ---
 

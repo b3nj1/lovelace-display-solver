@@ -207,6 +207,11 @@ display_profiles:
     burn_in_drift: false
     viewing_distance: far
     idle_glyph: "check_circle"
+    severity_bar:
+      edge: bottom
+      thickness_px: 8
+      color: entity         # color of highest-priority active entry
+      hide_when_idle: true  # omit shape entirely when active set is empty
     glyph_sizes:
       large: {px: 116, fits_cols: 1}
     layouts:
@@ -629,10 +634,11 @@ effects. This keeps it unit-testable without a browser.
 ```
 Input:  EntityConfig[] + Record<string, StateObject> + DisplayProfile + GlyphResolver
 Output: SolverResult {
-  glyphs: GlyphEntry[]   // resolved glyph codepoint + position + color, one per placed icon
-  info:   InfoEntry[]    // info-row entries in priority order (may exceed layout.info.max)
-  zones:  ZoneEntry[]    // resolved zone indicator shapes with color
-  layout: Layout         // the selected layout entry
+  glyphs:       GlyphEntry[]          // resolved glyph codepoint + position + color, one per placed icon
+  info:         InfoEntry[]           // info-row entries in tier order (may exceed layout.info.max)
+  zones:        ZoneEntry[]           // resolved zone indicator shapes with color
+  severity_bar: SeverityBarEntry | null  // null when idle and hide_when_idle: true
+  layout:       Layout                // the selected layout entry
 }
 ```
 
@@ -673,8 +679,16 @@ name + target font to a codepoint string. The solver never performs I/O.
 10. Resolve zone indicators: for each zone defined in the profile, find the highest-
     tier active entry that references that zone and emits an indicator; compute
     the shape position in pixels from the zone's fractional position definition.
-11. If active set is empty after focus mode, emit idle glyph (resolved via GlyphResolver).
-12. Pack into adapter-specific payload.
+11. Compute severity bar (if `severity_bar` is configured on the profile):
+    - Determine `tier_index` = 0-based position in the `tiers` list of the highest
+      active tier remaining after focus mode. If active set is empty, `fill_ratio = 0`.
+    - `fill_ratio = (N - tier_index) / N` where N = len(tiers).
+    - Color = resolved `{r,g,b}` of the highest-priority active entry (same selection
+      as zone indicator color). If idle, color is omitted.
+    - Compute pixel rect from `edge`, `thickness_px`, `screen_px`, and `margin_px`.
+    - Emit `SeverityBarEntry` (or `null` if idle and `hide_when_idle: true`).
+12. If active set is empty after focus mode, emit idle glyph (resolved via GlyphResolver).
+13. Pack into adapter-specific payload.
 
 ### Group placement
 
@@ -684,6 +698,111 @@ the same (x, y) coordinate with `place_with_next = true` for all but the last �
 meaning the column counter advances once for the whole group. Members are drawn in
 insertion order (across all priority buckets); later members visually overwrite
 earlier ones at the same pixel position.
+
+---
+
+## Severity Bar
+
+The severity bar is a filled edge bar that encodes the overall urgency level of the
+active set — a single glanceable indicator of "how bad is it right now?"
+
+### Concept
+
+The bar lives along one edge of the display. Its fill length grows as the highest
+active tier escalates, and its color tracks the highest-priority active entry's color.
+At idle (no active entries) the bar is hidden. At the least urgent active tier the bar
+is at its shortest; at the most urgent tier it fills the edge completely.
+
+This is separate from zone indicators. Zone indicators say *where* activity is;
+the severity bar says *how urgent* the overall situation is.
+
+### Fill calculation
+
+Let N = total number of tiers declared in the `tiers` list, and tier_index = 0-based
+position of the highest active tier (0 = most urgent, N-1 = least urgent).
+
+```
+fill_ratio = (N - tier_index) / N
+```
+
+With the default 4-tier list `[critical, alert, status, ambient]`:
+
+| Highest active tier | tier_index | fill_ratio |
+|---|---|---|
+| (idle) | — | 0.0 (hidden) |
+| ambient | 3 | 0.25 |
+| status | 2 | 0.50 |
+| alert | 1 | 0.75 |
+| critical | 0 | 1.0 (full edge) |
+
+The fill is discrete — it steps between tier levels, it does not interpolate.
+
+The bar reflects the post-focus-mode active set. If focus_mode suppresses all but
+`critical` entries, only `critical` entries contribute to fill.
+
+### Direction
+
+The bar always grows from the "start" end of its edge toward the "end":
+- `top` or `bottom` edge: grows left-to-right
+- `left` or `right` edge: grows top-to-bottom
+
+The unfilled portion of the edge is transparent (not drawn).
+
+### Color
+
+`color: entity` (default) — resolves to the `{r,g,b}` color of the highest-priority
+active entry using the same selection as zone indicators. This means the bar color
+naturally matches the most urgent alert's declared color (e.g., red for critical,
+orange for alert).
+
+`color: <name>` — a fixed color name from `src/utils/color.ts`. The bar is always
+that color regardless of which tier is active. Use when the color should be static
+and only the length encodes severity.
+
+### Schema
+
+```yaml
+severity_bar:
+  edge: bottom          # top | bottom | left | right
+  thickness_px: 4       # bar depth perpendicular to edge, in pixels
+  color: entity         # 'entity' = highest-priority active entry color, or a color name
+  hide_when_idle: true  # default true; false renders zero-length bar frame (canvas preview aid)
+```
+
+`hide_when_idle: false` is useful in the canvas adapter to show the bar rail even
+when idle — it makes the bar's position visible while authoring the config. For
+ESPHome targets it has no effect because a zero-length rectangle is invisible.
+
+`severity_bar` is optional. Omitting it means no severity bar is rendered for that
+profile.
+
+### Adapter encoding
+
+**ESPHome:** the bar is packed as one entry in the existing `draw_shape` arrays —
+no new service parameters are needed. Shape type `filled_rectangle`.
+
+For a 128×128 display with a 4px bottom bar at 75% fill (alert tier):
+```
+x=0, y=124, d2=96 (75% of 128), d3=4, r/g/b from resolved color
+```
+
+When `hide_when_idle: true` and active set is empty, the entry is omitted from the
+arrays entirely.
+
+**Canvas:** draw a filled rectangle at the computed edge position and pixel
+dimensions. When `hide_when_idle: false`, draw an unfilled rectangle outline first
+(using the card's `--secondary-background-color` CSS variable) to show the rail.
+
+### Interaction with margin and burn-in drift
+
+The severity bar is positioned against the edge of the usable content area, which
+is inset by `margin_px`. For a 128×128 display with `margin_px: [4, 4]` and the bar
+on the `bottom` edge with `thickness_px: 4`, the bar occupies `y=120..124` (inside
+the 4px drift zone, above the 4px bottom margin). This means the bar drifts with the
+rest of the content — it does not anchor to the physical edge.
+
+If the bar should anchor to the absolute bottom pixel row regardless of drift, set
+`margin_px: [0, 0]` and use the zone indicator mechanism instead for zone edge bars.
 
 ---
 

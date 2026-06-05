@@ -241,7 +241,7 @@ def test_when_also_both_met_matches():
             _rule(
                 WhenCondition(
                     state="unlocked",
-                    also=[CrossEntityCondition(entity="binary_sensor.front_door", state="on")],
+                    also=[CrossEntityCondition(entity_id="binary_sensor.front_door", state="on")],
                 ),
                 _show("critical"),
             ),
@@ -267,7 +267,7 @@ def test_when_also_one_condition_fails_falls_to_next_rule():
             _rule(
                 WhenCondition(
                     state="unlocked",
-                    also=[CrossEntityCondition(entity="binary_sensor.front_door", state="on")],
+                    also=[CrossEntityCondition(entity_id="binary_sensor.front_door", state="on")],
                 ),
                 _show("critical"),
             ),
@@ -291,7 +291,7 @@ def test_when_also_missing_entity_fails():
             _rule(
                 WhenCondition(
                     state="unlocked",
-                    also=[CrossEntityCondition(entity="binary_sensor.front_door", state="on")],
+                    also=[CrossEntityCondition(entity_id="binary_sensor.front_door", state="on")],
                 ),
                 _show("critical"),
             ),
@@ -464,6 +464,67 @@ def test_focus_mode_uses_tiers_0_not_hardcoded():
     result = apply_focus_mode(entries, custom_tiers)
     assert len(result) == 1
     assert result[0].tier == "urgent"
+
+
+# ── unavailable override with also conditions ─────────────────────────────────
+
+
+def test_unavailable_override_with_also_not_met():
+    """When the also condition is NOT met, the unavailable rule is not a valid override.
+
+    The entity should fall back to defaults.unavailable_action == 'hide' and return None.
+    """
+    cfg = EntityConfig(
+        id="pool",
+        entity_id="switch.pool",
+        glyph="pool",
+        rules=[
+            _rule(
+                WhenCondition(
+                    state="unavailable",
+                    also=[CrossEntityCondition(entity_id="switch.x", state="on")],
+                ),
+                _show("critical", "red"),
+            ),
+        ],
+    )
+    states = {
+        "switch.pool": _state("unavailable"),
+        "switch.x": _state("off"),  # also condition NOT met
+    }
+    result = evaluate_entity(cfg, states, TIERS, DEFAULTS)
+    assert result is None, (
+        "When the 'also' condition is not met, the unavailable rule is not an override;"
+        " unavailable_action='hide' should apply and return None"
+    )
+
+
+def test_unavailable_override_with_also_met():
+    """When the also condition IS met, the unavailable rule fires normally."""
+    cfg = EntityConfig(
+        id="pool",
+        entity_id="switch.pool",
+        glyph="pool",
+        rules=[
+            _rule(
+                WhenCondition(
+                    state="unavailable",
+                    also=[CrossEntityCondition(entity_id="switch.x", state="on")],
+                ),
+                _show("critical", "red"),
+            ),
+        ],
+    )
+    states = {
+        "switch.pool": _state("unavailable"),
+        "switch.x": _state("on"),  # also condition IS met
+    }
+    entry = evaluate_entity(cfg, states, TIERS, DEFAULTS)
+    assert entry is not None, (
+        "When the 'also' condition is met, the unavailable override rule should fire"
+        " and return an ActiveEntry"
+    )
+    assert entry.tier == "critical"
 
 
 # ── mutual exclusion validation ───────────────────────────────────────────────

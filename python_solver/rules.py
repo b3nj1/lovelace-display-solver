@@ -29,14 +29,14 @@ def evaluate_entity(
     state_str: str | None = state_obj.state if state_obj is not None else None
     is_unavailable = state_str is None or state_str in _UNAVAILABLE_STATES
 
-    if is_unavailable and not _has_unavailable_override(config, state_str):
+    if is_unavailable and not _has_unavailable_override(config, state_str, states):
         if defaults.unavailable_action == "hide":
             return None
         fallback_tier = tiers[-1] if tiers else "status"
         return ActiveEntry(
             entity_config=config,
             tier=fallback_tier,
-            color="",
+            color=None,
             glyph_name=glyph_name,
             show_info=defaults.show_info,
             focus_mode=False,
@@ -58,6 +58,7 @@ def evaluate_entity(
 def apply_focus_mode(
     entries: list[ActiveEntry], tiers: list[str]
 ) -> list[ActiveEntry]:
+    # Caller must supply tiers in most-urgent-first order; tiers[0] is treated as the critical tier.
     if not any(e.focus_mode for e in entries):
         return entries
     most_urgent = tiers[0] if tiers else ""
@@ -74,11 +75,29 @@ def _resolve_glyph(config: EntityConfig, states: dict[str, StateObject]) -> str:
     return config.glyph or ""
 
 
-def _has_unavailable_override(config: EntityConfig, state_str: str | None) -> bool:
+def _has_unavailable_override(
+    config: EntityConfig,
+    state_str: str | None,
+    states: dict[str, StateObject],
+) -> bool:
     if not config.rules:
         return False
     check = {state_str} if state_str is not None else _UNAVAILABLE_STATES
-    return any(r.when.state in check for r in config.rules if r.when.state is not None)
+    # When state is None (entity missing), any explicit unavailable/unknown rule is an override.
+    # When state is a concrete string, only an exact-match rule is an override.
+    # A rule with 'also' conditions is only a reliable override when those conditions currently hold.
+    for r in config.rules:
+        if r.when.state not in check:
+            continue
+        if r.when.also:
+            if all(
+                (obj := states.get(cond.entity_id)) is not None and obj.state == cond.state
+                for cond in r.when.also
+            ):
+                return True
+        else:
+            return True
+    return False
 
 
 def _match_when(
@@ -114,7 +133,7 @@ def _match_when(
 
     if when.also:
         for cond in when.also:
-            other = states.get(cond.entity)
+            other = states.get(cond.entity_id)
             if other is None or other.state != cond.state:
                 return False
 
@@ -147,9 +166,10 @@ def _evaluate_rules(
         if then.action == "hide":
             return None
         tier = then.tier or (tiers[-1] if tiers else "status")
-        color = then.color or ""
+        color = then.color
         show_info = then.show_info if then.show_info is not None else defaults.show_info
         indicator_only = then.action == "indicator"
+        # indicator_only: glyph hidden; then.indicator: glyph shown but zone still driven
         drive_zone = indicator_only or then.indicator
         return ActiveEntry(
             entity_config=config,
@@ -180,6 +200,8 @@ def _evaluate_thresholds(
     matched_step: ThresholdStep | None = None
     matched_index = -1
 
+    # Thresholds must be in strictly ascending 'above' order (validated by validate_entity_config).
+    # Iterating forward and keeping the last match gives the highest threshold the value has crossed.
     for i, step in enumerate(config.thresholds):
         if val > step.above:
             matched_step = step
@@ -193,7 +215,7 @@ def _evaluate_thresholds(
     elif color_scale:
         color = color_scale[matched_index % len(color_scale)]
     else:
-        color = ""
+        color = None
 
     return ActiveEntry(
         entity_config=config,

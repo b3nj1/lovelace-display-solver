@@ -1231,7 +1231,7 @@ for every step; none is optional.
 |---|---|
 | **dev** | Implement the code described in the step spec |
 | **test** | Implement unit and integration tests for all deliverables |
-| **user-review** | Review docs, config schemas, error messages, and help text for user friendliness. Save feedback into reviews/step-XX-user.md |
+| **user-review** | Review docs, config schemas, error messages, and help text for user friendliness (features should be intiutive to understand, use and configure), doc clarity and doc correctness. Save feedback into reviews/step-XX-user.md |
 | **code-review** | Review code for correctness, maintainability, and execution efficiency (memory and speed). Save feedback into reviews/step-XX.code.md |
 
 <!-- anchor: zero-trust-handoff -->

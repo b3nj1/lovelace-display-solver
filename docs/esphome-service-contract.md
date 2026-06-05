@@ -18,41 +18,41 @@ full arrays and overwrites them on each call.
 
 | Parameter | Type | Array | Description |
 |---|---|---|---|
-| `x` | int[] | yes | X pixel coordinate (top-left) of each icon glyph |
-| `y` | int[] | yes | Y pixel coordinate (top-left) of each icon glyph |
-| `r` | int[] | yes | Red channel (0–255) of each icon glyph |
-| `g` | int[] | yes | Green channel (0–255) of each icon glyph |
-| `b` | int[] | yes | Blue channel (0–255) of each icon glyph |
-| `glyph` | int[] | yes | Codepoint of each icon glyph (Material Symbols Sharp) |
-| `glyph_font` | int | no | Font index for all icon glyphs (e.g. `2` for the 58px font) |
+| `x` | string (comma-separated ints) | yes | X pixel coordinate (top-left) of each icon glyph |
+| `y` | string (comma-separated ints) | yes | Y pixel coordinate (top-left) of each icon glyph |
+| `r` | string (comma-separated ints) | yes | Red channel (0–255) of each icon glyph |
+| `g` | string (comma-separated ints) | yes | Green channel (0–255) of each icon glyph |
+| `b` | string (comma-separated ints) | yes | Blue channel (0–255) of each icon glyph |
+| `glyph` | string (comma-separated ints) | yes | Codepoint of each icon glyph (Material Symbols Sharp) |
+| `glyph_font` | int | no | Index into the device's compiled fonts list (0-based; corresponds to the position in your fonts: section). The solver sends the index matching the selected icon glyph size. |
 
 ### Info glyph arrays
 
 | Parameter | Type | Array | Description |
 |---|---|---|---|
-| `info_glyph` | int[] | yes | Codepoint of each info-row glyph |
-| `info_glyph_y` | int[] | yes | Y pixel coordinate of each info-row glyph |
-| `info_glyph_x` | int[] | yes | X pixel coordinate of each info-row glyph |
-| `info_glyph_r` | int[] | yes | Red channel (0–255) of each info-row glyph |
-| `info_glyph_g` | int[] | yes | Green channel (0–255) of each info-row glyph |
-| `info_glyph_b` | int[] | yes | Blue channel (0–255) of each info-row glyph |
+| `info_glyph` | string (comma-separated ints) | yes | Codepoint of each info-row glyph |
+| `info_glyph_y` | string (comma-separated ints) | yes | Y pixel coordinate of each info-row glyph |
+| `info_glyph_x` | string (comma-separated ints) | yes | X pixel coordinate of each info-row glyph |
+| `info_glyph_r` | string (comma-separated ints) | yes | Red channel (0–255) of each info-row glyph |
+| `info_glyph_g` | string (comma-separated ints) | yes | Green channel (0–255) of each info-row glyph |
+| `info_glyph_b` | string (comma-separated ints) | yes | Blue channel (0–255) of each info-row glyph |
 
 ### Info text arrays
 
 | Parameter | Type | Array | Description |
 |---|---|---|---|
-| `info_text` | string[] | yes | Pre-rendered info line strings (e.g. "1423 ppm CO₂") |
-| `info_text_y` | int[] | yes | Y pixel coordinate of each info text line |
-| `info_text_x` | int[] | yes | X pixel coordinate of each info text line |
-| `info_text_r` | int[] | yes | Red channel (0–255) of each info text line |
-| `info_text_g` | int[] | yes | Green channel (0–255) of each info text line |
-| `info_text_b` | int[] | yes | Blue channel (0–255) of each info text line |
+| `info_text` | string (pipe-separated, e.g. "Line 1\|Line 2") | yes | Pre-rendered info line strings (e.g. "1423 ppm CO₂") |
+| `info_text_y` | string (comma-separated ints) | yes | Y pixel coordinate of each info text line |
+| `info_text_x` | string (comma-separated ints) | yes | X pixel coordinate of each info text line |
+| `info_text_r` | string (comma-separated ints) | yes | Red channel (0–255) of each info text line |
+| `info_text_g` | string (comma-separated ints) | yes | Green channel (0–255) of each info text line |
+| `info_text_b` | string (comma-separated ints) | yes | Blue channel (0–255) of each info text line |
 
 ### Info scroll
 
 | Parameter | Type | Array | Description |
 |---|---|---|---|
-| `info_scroll` | bool | no | When true, ESPHome scrolls through info lines that exceed the display area |
+| `info_scroll` | bool | no | Signal to the display lambda that info lines should be scrolled. The lambda must implement scrolling logic gated on `g_info_scroll`; see the reference YAML for guidance. |
 
 ### Draw shape arrays
 
@@ -61,14 +61,14 @@ the same length as each other (independent of the icon/info array lengths).
 
 | Parameter | Type | Array | Description |
 |---|---|---|---|
-| `draw_shape` | int[] | yes | Shape type code: `0` = filled_rectangle, `1` = circle, `2` = filled_circle |
-| `draw_shape_x` | int[] | yes | X pixel coordinate (top-left or center for circles) |
-| `draw_shape_y` | int[] | yes | Y pixel coordinate (top-left or center for circles) |
-| `draw_shape_d2` | int[] | yes | Width (rectangles) or radius (circles) in pixels |
-| `draw_shape_d3` | int[] | yes | Height in pixels (rectangles); unused for circles (set to 0) |
-| `draw_shape_r` | int[] | yes | Red channel (0–255) |
-| `draw_shape_g` | int[] | yes | Green channel (0–255) |
-| `draw_shape_b` | int[] | yes | Blue channel (0–255) |
+| `draw_shape` | string (comma-separated ints) | yes | Shape type code: `0` = filled_rectangle, `1` = circle, `2` = filled_circle |
+| `draw_shape_x` | string (comma-separated ints) | yes | X pixel coordinate (top-left or center for circles) |
+| `draw_shape_y` | string (comma-separated ints) | yes | Y pixel coordinate (top-left or center for circles) |
+| `draw_shape_d2` | string (comma-separated ints) | yes | Width (rectangles) or radius (circles) in pixels |
+| `draw_shape_d3` | string (comma-separated ints) | yes | Height in pixels (rectangles); unused for circles (set to 0) |
+| `draw_shape_r` | string (comma-separated ints) | yes | Red channel (0–255) |
+| `draw_shape_g` | string (comma-separated ints) | yes | Green channel (0–255) |
+| `draw_shape_b` | string (comma-separated ints) | yes | Blue channel (0–255) |
 
 ### Diagnostics
 
@@ -91,6 +91,8 @@ display lambda draws whatever glyphs it receives. Paging state (current page,
 page count, dwell timer) is managed entirely in the solver host layer
 (AppDaemon or Lovelace card). A state change always resets to page 0.
 
+When the active set is empty, the solver sends empty arrays (length 0) for all array parameters — do not omit parameters from the call.
+
 ---
 
 ## Removed Parameters
@@ -108,11 +110,7 @@ runtime warning.
 
 ## Migration from pre-v1.0
 
-If your solver (Node-RED flow, AppDaemon app, or Lovelace card) was sending
-the removed parameters, you must stop sending them before flashing the updated
-ESPHome firmware. Sending unknown parameters to an ESPHome service causes an
-ESPHome runtime warning on every call; the service still executes but the
-warning fills the log.
+**Important: update your solver to stop sending the removed parameters before flashing the updated ESPHome firmware.** If you flash first, the updated firmware will not recognise the old parameters and will emit a warning on every service call until the solver is also updated.
 
 ### Steps
 
@@ -137,9 +135,9 @@ warning fills the log.
    - name: info_glyph_font
      type: int
 
-   # In the display lambda, replace:
-   #   id(info_glyph_font_global)
-   # with the literal font id, e.g.:
+   # In the display lambda, find any reference to the info_glyph_font service
+   # variable (the variable name will match whatever you declared in variables:)
+   # and replace it with the literal font id, e.g.:
    #   font3
    ```
 

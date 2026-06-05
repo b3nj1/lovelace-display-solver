@@ -165,3 +165,94 @@ def test_validate_empty_tier_in_rule():
 def test_validate_no_rules_no_thresholds_is_valid():
     cfg = EntityConfig(id="x", entity_id="sensor.x")
     assert validate_entity_config(cfg) == []
+
+
+def test_validate_invalid_action_value():
+    cfg = EntityConfig(
+        id="light",
+        entity_id="light.bedroom",
+        rules=[Rule(when=WhenCondition(state="on"), then=ThenAction(action="fly"))],
+    )
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+    assert any("light" in e and "fly" in e for e in errors)
+
+
+def test_validate_range_lo_gt_hi():
+    cfg = EntityConfig(
+        id="temp",
+        entity_id="sensor.temperature",
+        rules=[Rule(when=WhenCondition(range=(50.0, 10.0)), then=ThenAction())],
+    )
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+    assert any("50.0" in e and "10.0" in e for e in errors)
+
+
+def test_validate_time_range_invalid_format():
+    cfg = EntityConfig(
+        id="sched",
+        entity_id="sensor.sched",
+        rules=[Rule(when=WhenCondition(time_range=("25:99", "06:00")), then=ThenAction())],
+    )
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+    assert any("HH:MM" in e for e in errors)
+
+
+def test_validate_empty_entity_id():
+    cfg = EntityConfig(id="empty", entity_id="")
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+    assert any("entity_id" in e for e in errors)
+
+
+def test_validate_empty_id():
+    cfg = EntityConfig(id="", entity_id="sensor.x")
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+    assert any("id" in e for e in errors)
+
+
+def test_validate_state_and_range_combined():
+    cfg = EntityConfig(
+        id="conflict",
+        entity_id="sensor.conflict",
+        rules=[Rule(when=WhenCondition(state="on", range=(0.0, 100.0)), then=ThenAction())],
+    )
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+
+
+def test_also_only_rule_not_empty_when_warning():
+    """A rule with only 'also' conditions must not trigger the always-matches warning."""
+    cfg = EntityConfig(
+        id="also_test",
+        entity_id="sensor.also_test",
+        rules=[
+            Rule(
+                when=WhenCondition(also=[CrossEntityCondition(entity_id="x", state="on")]),
+                then=ThenAction(tier="alert"),
+            ),
+            _make_rule("off", "hide", None),
+        ],
+    )
+    errors = validate_entity_config(cfg)
+    assert errors == []
+
+
+def test_validate_also_empty_entity_id():
+    """An also condition with an empty entity_id must produce a validation error."""
+    cfg = EntityConfig(
+        id="also_empty",
+        entity_id="sensor.also_empty",
+        rules=[
+            Rule(
+                when=WhenCondition(also=[CrossEntityCondition(entity_id="", state="on")]),
+                then=ThenAction(tier="alert"),
+            ),
+        ],
+    )
+    errors = validate_entity_config(cfg)
+    assert len(errors) > 0
+    assert any("entity_id" in e for e in errors)

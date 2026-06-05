@@ -17,6 +17,20 @@ and mandatory references. Read it before writing any code.
 > Priority-based icon/alert dashboard card for Home Assistant — drives ESPHome displays,
 > Chromecast, and dashboard previews from a single declarative entity config.
 
+
+---
+## Multi-agent step execution
+
+Steps in `steps/` define named agent roles (dev, test, user-review, code-review).
+These are mandatory separate invocations. The orchestrating agent MUST:
+1. Spawn a dev agent; wait for it to finish.
+2. Spawn a test agent; wait for it to finish.
+3. Spawn a user-review agent; collect its findings.
+4. Spawn a code-review agent; collect its findings.
+5. Surface findings to the user before marking the step done.
+
+The orchestrating agent must not write implementation code, tests, or reviews itself.
+
 ---
 
 ## Mandatory Reading Before Any Code Change

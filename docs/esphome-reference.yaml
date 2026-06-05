@@ -6,6 +6,14 @@
 # Replace "living_room_iaq" with your actual ESPHome device name.
 # Replace font references (font1, font2, font3) with the id: values you
 # declared in your fonts: section.
+# Expected roles (0-based index into your fonts: section):
+#   index 0 (font1) = large icon font (~58px)
+#   index 1 (font2) = medium icon font (~36px)
+#   index 2 (font3) = small info text font (~14-16px)
+# Note: until the first set_display_glyphs service call arrives from Home Assistant, the display
+# will be blank. This is expected — globals are initialised empty at boot.
+# Note: the service lambda uses std::stringstream and std::getline. If your ESPHome version
+# does not include <sstream> automatically, add `#include <sstream>` to your ESPHome globals: block.
 
 # ---------------------------------------------------------------------------
 # API service declaration
@@ -17,33 +25,38 @@ api:
         # ── Icon glyph arrays ───────────────────────────────────────────────
         # Pixel coordinates and colour for each icon on the current page.
         # All icon arrays must be the same length on every call.
-        x: "std::vector<int>"           # X pixel coordinate (top-left) of each icon
-        y: "std::vector<int>"           # Y pixel coordinate (top-left) of each icon
-        r: "std::vector<int>"           # Red channel 0–255 of each icon
-        g: "std::vector<int>"           # Green channel 0–255 of each icon
-        b: "std::vector<int>"           # Blue channel 0–255 of each icon
-        glyph: "std::vector<int>"       # Material Symbols Sharp codepoint for each icon
-        glyph_font: int                 # Font index for all icon glyphs (e.g. 2 → 58px font)
+        # Array parameters are transmitted as comma-separated strings and
+        # parsed in the lambda below.
+        x: string           # X pixel coordinate (top-left) of each icon, comma-separated ints
+        y: string           # Y pixel coordinate (top-left) of each icon, comma-separated ints
+        r: string           # Red channel 0–255 of each icon, comma-separated ints
+        g: string           # Green channel 0–255 of each icon, comma-separated ints (NB: service variable named 'g' is distinct from global id(g_g))
+        b: string           # Blue channel 0–255 of each icon, comma-separated ints
+        glyph: string       # Material Symbols Sharp codepoint for each icon, comma-separated ints
+        glyph_font: int     # Index into the device's compiled fonts list (0-based; corresponds to the position in your fonts: section). The solver sends the index matching the selected icon glyph size.
 
         # ── Info glyph arrays ───────────────────────────────────────────────
         # Small inline glyph shown to the left of each info text line.
         # All info_glyph arrays must be the same length on every call.
-        info_glyph: "std::vector<int>"    # Codepoint of each info-row glyph
-        info_glyph_y: "std::vector<int>"  # Y pixel coordinate of each info-row glyph
-        info_glyph_x: "std::vector<int>"  # X pixel coordinate of each info-row glyph
-        info_glyph_r: "std::vector<int>"  # Red channel 0–255 of each info-row glyph
-        info_glyph_g: "std::vector<int>"  # Green channel 0–255 of each info-row glyph
-        info_glyph_b: "std::vector<int>"  # Blue channel 0–255 of each info-row glyph
+        # info_glyph and info_text arrays must be the same length — one glyph entry per text line.
+        info_glyph: string    # Codepoint of each info-row glyph, comma-separated ints
+        info_glyph_y: string  # Y pixel coordinate of each info-row glyph, comma-separated ints
+        info_glyph_x: string  # X pixel coordinate of each info-row glyph, comma-separated ints
+        info_glyph_r: string  # Red channel 0–255 of each info-row glyph, comma-separated ints
+        info_glyph_g: string  # Green channel 0–255 of each info-row glyph, comma-separated ints
+        info_glyph_b: string  # Blue channel 0–255 of each info-row glyph, comma-separated ints
 
         # ── Info text arrays ────────────────────────────────────────────────
         # Pre-rendered human-readable strings (e.g. "1423 ppm CO₂").
         # All info_text arrays must be the same length on every call.
-        info_text: "std::vector<std::string>"  # Rendered info line string
-        info_text_y: "std::vector<int>"        # Y pixel coordinate of each line
-        info_text_x: "std::vector<int>"        # X pixel coordinate of each line
-        info_text_r: "std::vector<int>"        # Red channel 0–255 of each line
-        info_text_g: "std::vector<int>"        # Green channel 0–255 of each line
-        info_text_b: "std::vector<int>"        # Blue channel 0–255 of each line
+        # info_glyph and info_text arrays must be the same length — one glyph entry per text line.
+        # info_text uses '|' as delimiter to avoid conflicts with commas in text values
+        info_text: string        # Rendered info line strings, pipe-separated (e.g. "23°C|1423 ppm")
+        info_text_y: string      # Y pixel coordinate of each line, comma-separated ints
+        info_text_x: string      # X pixel coordinate of each line, comma-separated ints
+        info_text_r: string      # Red channel 0–255 of each line, comma-separated ints
+        info_text_g: string      # Green channel 0–255 of each line, comma-separated ints
+        info_text_b: string      # Blue channel 0–255 of each line, comma-separated ints
 
         # ── Info scroll ─────────────────────────────────────────────────────
         info_scroll: bool               # True → ESPHome scrolls info lines through the display area
@@ -57,14 +70,14 @@ api:
         #   0 = filled_rectangle  (d2=width, d3=height)
         #   1 = circle            (d2=radius, d3 unused — set to 0)
         #   2 = filled_circle     (d2=radius, d3 unused — set to 0)
-        draw_shape: "std::vector<int>"    # Shape type code (see above)
-        draw_shape_x: "std::vector<int>"  # X coordinate (top-left for rects, center for circles)
-        draw_shape_y: "std::vector<int>"  # Y coordinate (top-left for rects, center for circles)
-        draw_shape_d2: "std::vector<int>" # Width (rect) or radius (circle) in pixels
-        draw_shape_d3: "std::vector<int>" # Height in pixels (rect); set 0 for circles
-        draw_shape_r: "std::vector<int>"  # Red channel 0–255
-        draw_shape_g: "std::vector<int>"  # Green channel 0–255
-        draw_shape_b: "std::vector<int>"  # Blue channel 0–255
+        draw_shape: string    # Shape type code (see above), comma-separated ints
+        draw_shape_x: string  # X coordinate (top-left for rects, center for circles), comma-separated ints
+        draw_shape_y: string  # Y coordinate (top-left for rects, center for circles), comma-separated ints
+        draw_shape_d2: string # Width (rect) or radius (circle) in pixels, comma-separated ints
+        draw_shape_d3: string # Height in pixels (rect); set 0 for circles, comma-separated ints
+        draw_shape_r: string  # Red channel 0–255, comma-separated ints
+        draw_shape_g: string  # Green channel 0–255, comma-separated ints
+        draw_shape_b: string  # Blue channel 0–255, comma-separated ints
 
         # ── Diagnostics ─────────────────────────────────────────────────────
         error: bool                     # True when the solver found no matching layout
@@ -72,40 +85,224 @@ api:
       then:
         # Store all incoming arrays and scalars into globals so the display
         # lambda can read them on each render cycle.
+        # Parse each comma-separated string into its corresponding vector global.
         - lambda: |-
-            id(g_x) = x;
-            id(g_y) = y;
-            id(g_r) = r;
-            id(g_g) = g;
-            id(g_b) = b;
-            id(g_glyph) = glyph;
+            // parse comma-separated int string into vector<int>
+            {
+              id(g_x).clear();
+              std::stringstream ss(x);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_x).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_y).clear();
+              std::stringstream ss(y);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_y).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_r).clear();
+              std::stringstream ss(r);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_r).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_g).clear();
+              std::stringstream ss(g);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_g).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_b).clear();
+              std::stringstream ss(b);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_b).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_glyph).clear();
+              std::stringstream ss(glyph);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_glyph).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_glyph).clear();
+              std::stringstream ss(info_glyph);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_glyph).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_glyph_y).clear();
+              std::stringstream ss(info_glyph_y);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_glyph_y).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_glyph_x).clear();
+              std::stringstream ss(info_glyph_x);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_glyph_x).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_glyph_r).clear();
+              std::stringstream ss(info_glyph_r);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_glyph_r).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_glyph_g).clear();
+              std::stringstream ss(info_glyph_g);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_glyph_g).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_glyph_b).clear();
+              std::stringstream ss(info_glyph_b);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_glyph_b).push_back(std::stoi(tok));
+              }
+            }
+
+            // info_text uses '|' as delimiter to avoid conflicts with commas in text values
+            {
+              id(g_info_text).clear();
+              std::stringstream ss(info_text);
+              std::string tok;
+              while (std::getline(ss, tok, '|')) {
+                if (!tok.empty()) id(g_info_text).push_back(tok);
+              }
+            }
+            {
+              id(g_info_text_y).clear();
+              std::stringstream ss(info_text_y);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_text_y).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_text_x).clear();
+              std::stringstream ss(info_text_x);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_text_x).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_text_r).clear();
+              std::stringstream ss(info_text_r);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_text_r).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_text_g).clear();
+              std::stringstream ss(info_text_g);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_text_g).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_info_text_b).clear();
+              std::stringstream ss(info_text_b);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_info_text_b).push_back(std::stoi(tok));
+              }
+            }
+
+            {
+              id(g_draw_shape).clear();
+              std::stringstream ss(draw_shape);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_x).clear();
+              std::stringstream ss(draw_shape_x);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_x).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_y).clear();
+              std::stringstream ss(draw_shape_y);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_y).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_d2).clear();
+              std::stringstream ss(draw_shape_d2);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_d2).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_d3).clear();
+              std::stringstream ss(draw_shape_d3);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_d3).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_r).clear();
+              std::stringstream ss(draw_shape_r);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_r).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_g).clear();
+              std::stringstream ss(draw_shape_g);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_g).push_back(std::stoi(tok));
+              }
+            }
+            {
+              id(g_draw_shape_b).clear();
+              std::stringstream ss(draw_shape_b);
+              std::string tok;
+              while (std::getline(ss, tok, ',')) {
+                if (!tok.empty()) id(g_draw_shape_b).push_back(std::stoi(tok));
+              }
+            }
+
+            // scalars — direct assignment
             id(g_glyph_font) = glyph_font;
-
-            id(g_info_glyph) = info_glyph;
-            id(g_info_glyph_y) = info_glyph_y;
-            id(g_info_glyph_x) = info_glyph_x;
-            id(g_info_glyph_r) = info_glyph_r;
-            id(g_info_glyph_g) = info_glyph_g;
-            id(g_info_glyph_b) = info_glyph_b;
-
-            id(g_info_text) = info_text;
-            id(g_info_text_y) = info_text_y;
-            id(g_info_text_x) = info_text_x;
-            id(g_info_text_r) = info_text_r;
-            id(g_info_text_g) = info_text_g;
-            id(g_info_text_b) = info_text_b;
-
             id(g_info_scroll) = info_scroll;
-
-            id(g_draw_shape) = draw_shape;
-            id(g_draw_shape_x) = draw_shape_x;
-            id(g_draw_shape_y) = draw_shape_y;
-            id(g_draw_shape_d2) = draw_shape_d2;
-            id(g_draw_shape_d3) = draw_shape_d3;
-            id(g_draw_shape_r) = draw_shape_r;
-            id(g_draw_shape_g) = draw_shape_g;
-            id(g_draw_shape_b) = draw_shape_b;
-
             id(g_error) = error;
 
 # ---------------------------------------------------------------------------
@@ -131,10 +328,11 @@ globals:
   - id: g_glyph
     type: "std::vector<int>"
     restore_value: false
+  # glyph_font index is overwritten by the first set_display_glyphs call; the initial_value only applies before HA connects.
   - id: g_glyph_font
     type: int
     restore_value: false
-    initial_value: "2"
+    initial_value: "0"  # index 0 = font1 (large icon font); overwritten on first service call — adjust to match your fonts: section
 
   - id: g_info_glyph
     type: "std::vector<int>"
@@ -216,8 +414,11 @@ globals:
 display:
   - platform: ssd1351_spi   # replace with your display platform
     # ... (cs_pin, dc_pin, reset_pin, etc.) ...
+    # update_interval: 1s  # how often the lambda re-draws; adjust to balance responsiveness and CPU load
     lambda: |-
-      it.fill(Color::BLACK);
+      it.fill(Color::BLACK);  // change to WHITE or your display's background color if needed
+      // *** Icon and info-text rendering calls below are commented-out stubs — uncomment and adapt. ***
+      // *** The draw_shape block further below is ready to use as-is. ***
 
       if (id(g_error)) {
         // TODO: render an error indicator on screen
@@ -226,32 +427,84 @@ display:
 
       // Draw icon glyphs for the current page slice.
       // The solver sends only the current page's entries; no paging logic needed here.
-      for (int i = 0; i < id(g_glyph).size(); i++) {
+      // Guard: all icon arrays must be the same length; skip render on mismatch (solver bug).
+      if (id(g_x).size() != id(g_glyph).size() ||
+          id(g_y).size() != id(g_glyph).size() ||
+          id(g_r).size() != id(g_glyph).size() ||
+          id(g_g).size() != id(g_glyph).size() ||
+          id(g_b).size() != id(g_glyph).size()) {
+        // TODO: render error indicator
+      } else {
+      for (size_t i = 0; i < id(g_glyph).size(); i++) {
         // font selection: use g_glyph_font to pick from your compiled font array.
         // Example stub — replace with actual font lookup for your configuration:
         //   auto *fnt = (id(g_glyph_font) == 1) ? font1 : font2;
-        //   it.printf(id(g_x)[i], id(g_y)[i], fnt,
-        //             Color(id(g_r)[i], id(g_g)[i], id(g_b)[i]),
-        //             "%s", (const char*)&id(g_glyph)[i]);
+        // Encode codepoint to UTF-8 and render. ESPHome it.printf expects a UTF-8 string.
+        // char utf8[5] = {};
+        // int cp = id(g_glyph)[i];
+        // if (cp < 0x80) { utf8[0] = cp; }
+        // else if (cp < 0x800) { utf8[0]=0xC0|(cp>>6); utf8[1]=0x80|(cp&0x3F); }
+        // else if (cp < 0x10000) { utf8[0]=0xE0|(cp>>12); utf8[1]=0x80|((cp>>6)&0x3F); utf8[2]=0x80|(cp&0x3F); }
+        // it.printf(id(g_x)[i], id(g_y)[i], fnt,
+        //           Color(id(g_r)[i], id(g_g)[i], id(g_b)[i]), "%s", utf8);
+      }
       }
 
       // Draw info-row glyphs.
       // font3 is hardcoded here (info_glyph_font was removed in v1.0).
-      for (int i = 0; i < id(g_info_glyph).size(); i++) {
+      // Guard: all info_glyph arrays must be the same length.
+      if (id(g_info_glyph_x).size() != id(g_info_glyph).size() ||
+          id(g_info_glyph_y).size() != id(g_info_glyph).size() ||
+          id(g_info_glyph_r).size() != id(g_info_glyph).size() ||
+          id(g_info_glyph_g).size() != id(g_info_glyph).size() ||
+          id(g_info_glyph_b).size() != id(g_info_glyph).size()) {
+        // TODO: render error indicator
+      } else {
+      for (size_t i = 0; i < id(g_info_glyph).size(); i++) {
+        // Encode codepoint to UTF-8 and render. ESPHome it.printf expects a UTF-8 string.
+        // char utf8[5] = {};
+        // int cp = id(g_info_glyph)[i];
+        // if (cp < 0x80) { utf8[0] = cp; }
+        // else if (cp < 0x800) { utf8[0]=0xC0|(cp>>6); utf8[1]=0x80|(cp&0x3F); }
+        // else if (cp < 0x10000) { utf8[0]=0xE0|(cp>>12); utf8[1]=0x80|((cp>>6)&0x3F); utf8[2]=0x80|(cp&0x3F); }
         // it.printf(id(g_info_glyph_x)[i], id(g_info_glyph_y)[i], font3,
         //           Color(id(g_info_glyph_r)[i], id(g_info_glyph_g)[i], id(g_info_glyph_b)[i]),
-        //           "%s", (const char*)&id(g_info_glyph)[i]);
+        //           "%s", utf8);
+      }
       }
 
       // Draw info text lines.
-      for (int i = 0; i < id(g_info_text).size(); i++) {
+      // info_scroll support: if your ESPHome display supports a scrolling text
+      // component (e.g. scroll_text), gate it here on id(g_info_scroll).
+      // The lambda skeleton draws all lines statically; implement scrolling to suit
+      // your display hardware.
+      // Guard: all info_text arrays must be the same length.
+      if (id(g_info_text_x).size() != id(g_info_text).size() ||
+          id(g_info_text_y).size() != id(g_info_text).size() ||
+          id(g_info_text_r).size() != id(g_info_text).size() ||
+          id(g_info_text_g).size() != id(g_info_text).size() ||
+          id(g_info_text_b).size() != id(g_info_text).size()) {
+        // TODO: render error indicator
+      } else {
+      for (size_t i = 0; i < id(g_info_text).size(); i++) {
         // it.printf(id(g_info_text_x)[i], id(g_info_text_y)[i], font3,
         //           Color(id(g_info_text_r)[i], id(g_info_text_g)[i], id(g_info_text_b)[i]),
         //           "%s", id(g_info_text)[i].c_str());
       }
+      }
 
       // Draw shapes (zone indicators, severity bar).
-      for (int i = 0; i < id(g_draw_shape).size(); i++) {
+      // Guard: all draw_shape arrays must be the same length.
+      if (id(g_draw_shape_x).size() != id(g_draw_shape).size() ||
+          id(g_draw_shape_y).size() != id(g_draw_shape).size() ||
+          id(g_draw_shape_d2).size() != id(g_draw_shape).size() ||
+          id(g_draw_shape_d3).size() != id(g_draw_shape).size() ||
+          id(g_draw_shape_r).size() != id(g_draw_shape).size() ||
+          id(g_draw_shape_g).size() != id(g_draw_shape).size() ||
+          id(g_draw_shape_b).size() != id(g_draw_shape).size()) {
+        // TODO: render error indicator
+      } else {
+      for (size_t i = 0; i < id(g_draw_shape).size(); i++) {
         Color c(id(g_draw_shape_r)[i], id(g_draw_shape_g)[i], id(g_draw_shape_b)[i]);
         int sx = id(g_draw_shape_x)[i];
         int sy = id(g_draw_shape_y)[i];
@@ -267,5 +520,8 @@ display:
           case 2:  // filled_circle
             it.filled_circle(sx, sy, d2, c);
             break;
+          default:  // unknown shape type — skip
+            break;
         }
+      }
       }

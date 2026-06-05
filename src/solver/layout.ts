@@ -6,8 +6,8 @@ export const VIEWING_DISTANCE_PRESETS: Record<string, {
   max_info_rows: number;
   prefer_fewer_icons: boolean;
 }> = {
-  far:   { max_size: 'medium', max_info_rows: 0, prefer_fewer_icons: true  },
-  near:  { max_size: 'tiny',   max_info_rows: 4, prefer_fewer_icons: false },
+  far:   { max_size: 'large',  max_info_rows: 0, prefer_fewer_icons: true  },
+  near:  { max_size: 'medium', max_info_rows: 4, prefer_fewer_icons: false },
   close: { max_size: 'tiny',   max_info_rows: 6, prefer_fewer_icons: false },
 };
 

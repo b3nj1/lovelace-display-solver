@@ -115,8 +115,8 @@ constraints without changing the preset.
 
 | Preset | Typical scenario | Expands to |
 |---|---|---|
-| `far` | TV across room, OLED on a shelf | `max_size: medium`, `max_info_rows: 0`, `prefer_fewer_icons: true` |
-| `near` | Wall tablet at arm's length | `max_size: tiny`, `max_info_rows: 4`, `prefer_fewer_icons: false` |
+| `far` | TV across room, OLED on a shelf | `max_size: large`, `max_info_rows: 0`, `prefer_fewer_icons: true` |
+| `near` | Wall tablet at arm's length | `max_size: medium`, `max_info_rows: 4`, `prefer_fewer_icons: false` |
 | `close` | Dashboard card on desk | `max_size: tiny`, `max_info_rows: 6`, `prefer_fewer_icons: false` |
 
 `layout_constraints` can be written explicitly to express combinations no preset
@@ -167,7 +167,7 @@ display_profiles:
     screen_px: [128, 128]
     margin_px: [4, 4]       # burn-in drift zone; content never reaches edge pixels
     burn_in_drift: true
-    viewing_distance: far   # expands to: max_size: medium, max_info_rows: 0, prefer_fewer_icons: true
+    viewing_distance: far   # expands to: max_size: large, max_info_rows: 0, prefer_fewer_icons: true
     idle_glyph: "check_circle"
     page_dwell_s: 5.0           # seconds per icon page; only active when icons overflow layout
     glyph_sizes:            # named sizes compiled into firmware; solver maps size: name → px

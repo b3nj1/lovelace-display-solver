@@ -29,20 +29,20 @@ _EMPTY_LAYOUT = LayoutEntry(
 )
 
 
-def solve(
+def _evaluate_and_resolve(
     entity_configs: list[EntityConfig],
     states: dict[str, StateObject],
     tiers: list[str],
     defaults: Defaults,
     profile: DisplayProfile,
     glyph_resolver: Callable[[str], str],
-    groups: list[GroupConfig],
-    current_page: int = 0,
-    now: datetime | None = None,
-) -> SolverResult:
-    if now is None:
-        now = datetime.now()
+    now: datetime,
+) -> tuple[list[ActiveEntry], list[str]]:
+    """Steps 1-4 of solve(): evaluate entities, sort by tier, apply focus mode,
+    resolve glyphs with warnings.
 
+    Returns (resolved_entries, warnings).
+    """
     warnings: list[str] = []
 
     # Step 1: evaluate each entity config
@@ -59,26 +59,70 @@ def solve(
     # Step 3: apply focus mode
     active_entries = apply_focus_mode(raw_entries, tiers)
 
-    # Step 4: resolve glyphs; warn on missing from font_glyphs
+    # Step 4: resolve glyphs; warn on missing codepoint and on missing from font_glyphs
     resolved: list[ActiveEntry] = []
     for entry in active_entries:
         codepoint = glyph_resolver(entry.glyph_name)
-        if profile.type == "esphome" and entry.glyph_name and entry.glyph_name not in profile.font_glyphs:
+        if not codepoint:
             warnings.append(
-                f"Glyph '{entry.glyph_name}' is not listed in profile '{profile.id}' font_glyphs;"
-                f" it may not render on the ESPHome display."
+                f"Glyph '{entry.glyph_name}' (entity '{entry.entity_config.entity_id}')"
+                f" could not be resolved to a codepoint — check the glyph name in your"
+                f" entity config."
             )
-        resolved.append(entry)
+            # Fall back to original name so the entry is still emitted
+            effective_name = entry.glyph_name
+        else:
+            effective_name = codepoint
+            if (
+                profile.type == "esphome"
+                and entry.glyph_name
+                and entry.glyph_name not in profile.font_glyphs
+            ):
+                warnings.append(
+                    f"Glyph '{entry.glyph_name}' is not listed in profile '{profile.id}'"
+                    f" font_glyphs; it may not render on the ESPHome display."
+                )
+
+        from dataclasses import replace as dc_replace
+        resolved.append(dc_replace(entry, glyph_name=effective_name))
+
+    return resolved, warnings
+
+
+def solve(
+    entity_configs: list[EntityConfig],
+    states: dict[str, StateObject],
+    tiers: list[str],
+    defaults: Defaults,
+    profile: DisplayProfile,
+    glyph_resolver: Callable[[str], str],
+    groups: list[GroupConfig],
+    current_page: int = 0,
+    now: datetime | None = None,
+) -> SolverResult:
+    if now is None:
+        now = datetime.now()
+
+    # Steps 1-4: evaluate, sort, focus-filter, resolve glyphs
+    resolved, warnings = _evaluate_and_resolve(
+        entity_configs, states, tiers, defaults, profile, glyph_resolver, now
+    )
 
     # Step 5: count visible icon slots (groups collapse)
     group_map: dict[str, GroupConfig] = {g.id: g for g in groups}
     visible_slots = _count_visible_slots(resolved, group_map)
 
     # Step 6: select layout
-    non_indicator = [e for e in resolved if not e.indicator_only]
     has_info = any(e.show_info for e in resolved)
     layout = select_layout(profile, visible_slots, has_info)
     if layout is None:
+        reason = (
+            f"No layout matched {visible_slots} icon(s) on profile '{profile.id}'"
+            f" (viewing_distance='{profile.viewing_distance}', has_info={has_info})."
+            f" Profile defines {len(profile.layouts)} layout(s);"
+            f" check icon_min/icon_max ranges."
+        )
+        warnings.append(reason)
         return SolverResult(
             profile_id=profile.id,
             glyphs=[],
@@ -89,6 +133,7 @@ def solve(
             error=True,
             warnings=warnings,
             page_count=1,
+            error_reason=reason,
         )
 
     # Step 7: paging
@@ -96,16 +141,17 @@ def solve(
     paged_entries = _slice_page(resolved, group_map, current_page, layout.icon_max)
 
     # Step 8: compute glyph coordinates
-    glyphs = compute_coordinates(profile, layout, paged_entries, now)
+    glyphs = compute_coordinates(profile, layout, paged_entries, now, warnings=warnings)
 
     # Step 9: collect info lines (all active entries, not just paged)
-    info_entries = _collect_info(resolved, tiers, states, profile)
+    # Caller must pass entries in tier order (most-urgent first); see solve() step 2.
+    info_entries = _collect_info(resolved, tiers, states, profile, warnings=warnings)
 
     # Step 10: zone indicators
     zone_entries = _resolve_zones(resolved, tiers, profile)
 
     # Step 11: severity bar
-    severity_bar = _compute_severity_bar(resolved, tiers, profile, now)
+    severity_bar = _compute_severity_bar(resolved, tiers, profile, now, warnings=warnings)
 
     # Step 12: idle glyph when active set is empty
     if not resolved and not glyphs:
@@ -190,8 +236,6 @@ def _slice_page(
     non_indicators = [e for e in entries if not e.indicator_only]
     seen_groups: set[str] = set()
     slot_to_entries: list[list[ActiveEntry]] = []
-    current_slot: list[ActiveEntry] | None = None
-    current_gid: str | None = None
 
     for entry in non_indicators:
         gid = entry.entity_config.group
@@ -199,9 +243,7 @@ def _slice_page(
         if gc and gc.collapse == "overlay":
             if gid not in seen_groups:
                 seen_groups.add(gid)
-                current_gid = gid
-                current_slot = [entry]
-                slot_to_entries.append(current_slot)
+                slot_to_entries.append([entry])
             else:
                 # Add to the existing slot for this group
                 for slot in slot_to_entries:
@@ -229,8 +271,9 @@ def _collect_info(
     tiers: list[str],
     states: dict[str, StateObject],
     profile: DisplayProfile,
+    warnings: list[str] | None = None,
 ) -> list[InfoEntry]:
-    tier_index: dict[str, int] = {t: i for i, t in enumerate(tiers)}
+    # Caller must pass entries in tier order (most-urgent first); see solve() step 2.
     info_entries: list[InfoEntry] = []
 
     for entry in entries:
@@ -246,7 +289,7 @@ def _collect_info(
             text_val = state_val
         label = cfg.label or cfg.entity_id
         text = f"{text_val} {label}"
-        r, g, b = _parse_color(entry.color)
+        r, g, b = _parse_color(entry.color, warnings=warnings)
         info_entries.append(InfoEntry(text=text, x=0, y=0, r=r, g=g, b=b))
 
     return info_entries
@@ -287,6 +330,7 @@ def _resolve_zone_rect(
     slot: ZoneSlot, profile: DisplayProfile
 ) -> tuple[int, int, int, int]:
     sw, sh = profile.screen_px
+    mx, my = profile.margin_px
     pos = slot.position
     if isinstance(pos, dict):
         x = int(pos.get("x", 0))
@@ -294,17 +338,20 @@ def _resolve_zone_rect(
         w = int(pos.get("w", sw // 4))
         h = int(pos.get("h", sh // 4))
         return x, y, w, h
-    # Named shortcuts: divide screen into quadrants
+    # Named shortcuts: divide screen into quadrants, respecting margin_px.
+    # Right-half width uses sw - sw//2 to avoid 1-pixel gaps on odd screen widths.
+    # Bottom-half height uses sh - sh//2 for the same reason.
     named = {
-        "top-left":     (0,        0,        sw // 2, sh // 2),
-        "top-right":    (sw // 2,  0,        sw // 2, sh // 2),
-        "bottom-left":  (0,        sh // 2,  sw // 2, sh // 2),
-        "bottom-right": (sw // 2,  sh // 2,  sw // 2, sh // 2),
-        "top":          (0,        0,        sw,      sh // 4),
-        "bottom":       (0,        3*sh//4,  sw,      sh // 4),
-        "left":         (0,        0,        sw // 4, sh),
-        "right":        (3*sw//4,  0,        sw // 4, sh),
-        "center":       (sw // 4,  sh // 4,  sw // 2, sh // 2),
+        "top-left":     (mx,       my,       sw // 2 - mx,          sh // 2 - my),
+        "top-right":    (sw // 2,  my,       sw - sw // 2 - mx,     sh // 2 - my),
+        "bottom-left":  (mx,       sh // 2,  sw // 2 - mx,          sh - sh // 2 - my),
+        "bottom-right": (sw // 2,  sh // 2,  sw - sw // 2 - mx,     sh - sh // 2 - my),
+        "top":          (mx,       my,       sw - 2 * mx,           sh // 4),
+        "bottom":       (mx,       3*sh//4,  sw - 2 * mx,           sh // 4),
+        "left":         (mx,       my,       sw // 4,               sh - 2 * my),
+        "right":        (3*sw//4,  my,       sw // 4,               sh - 2 * my),
+        "center":       (sw // 4,  sh // 4,  sw // 2,               sh // 2),
+        "full":         (mx,       my,       sw - 2 * mx,           sh - 2 * my),
     }
     return named.get(pos, (0, 0, sw // 4, sh // 4))
 
@@ -314,6 +361,7 @@ def _compute_severity_bar(
     tiers: list[str],
     profile: DisplayProfile,
     now: datetime,
+    warnings: list[str] | None = None,
 ) -> SeverityBarEntry | None:
     cfg = profile.severity_bar
     if cfg is None:
@@ -322,10 +370,23 @@ def _compute_severity_bar(
     active = [e for e in entries if not e.indicator_only]
     idle = not active
 
-    if idle and cfg.hide_when_idle:
-        return None
-
+    # Single gate: when idle, respect hide_when_idle; when not idle, always render.
     if idle:
+        if cfg.hide_when_idle:
+            return None
+        # Idle with hide_when_idle=False: emit a zero-width bar
+        sw, sh = profile.screen_px
+        t = cfg.thickness_px
+        color_str = None if cfg.color == "entity" else cfg.color
+        r, g, b = _parse_color(color_str, warnings=warnings)
+        if cfg.edge == "bottom":
+            return SeverityBarEntry(x=0, y=sh - t, w=0, h=t, r=r, g=g, b=b)
+        elif cfg.edge == "top":
+            return SeverityBarEntry(x=0, y=0, w=0, h=t, r=r, g=g, b=b)
+        elif cfg.edge == "left":
+            return SeverityBarEntry(x=0, y=0, w=t, h=0, r=r, g=g, b=b)
+        elif cfg.edge == "right":
+            return SeverityBarEntry(x=sw - t, y=0, w=t, h=0, r=r, g=g, b=b)
         return None
 
     tier_index: dict[str, int] = {t: i for i, t in enumerate(tiers)}
@@ -340,7 +401,7 @@ def _compute_severity_bar(
     color_str = cfg.color
     if color_str == "entity":
         color_str = best.color
-    r, g, b = _parse_color(color_str)
+    r, g, b = _parse_color(color_str, warnings=warnings)
 
     if cfg.edge == "bottom":
         bar_x = 0

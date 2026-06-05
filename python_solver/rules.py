@@ -60,7 +60,7 @@ def apply_focus_mode(
 ) -> list[ActiveEntry]:
     # Caller must supply tiers in most-urgent-first order; tiers[0] is treated as the critical tier.
     if not any(e.focus_mode for e in entries):
-        return entries
+        return list(entries)
     most_urgent = tiers[0] if tiers else ""
     return [e for e in entries if e.tier == most_urgent]
 

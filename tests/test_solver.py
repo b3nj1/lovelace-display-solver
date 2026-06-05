@@ -109,7 +109,7 @@ def test_single_entity_active():
     )
     assert not result.error
     assert len(result.glyphs) == 1
-    assert result.glyphs[0].glyph_name == "home"
+    assert result.glyphs[0].glyph_name == _glyph_resolver("home")
 
 
 # ── multi-display ──────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ def test_focus_mode_suppresses_non_critical():
         now=_NOW,
     )
     assert not result.error
-    assert all(g.glyph_name == "home" for g in result.glyphs)
+    assert all(g.glyph_name == _glyph_resolver("home") for g in result.glyphs)
     assert len(result.glyphs) == 1
 
 
@@ -486,3 +486,127 @@ def test_esphome_missing_glyph_warning():
         now=_NOW,
     )
     assert any("missing_glyph" in w for w in result.warnings)
+
+
+# ── LayoutEntry.from_dict() ────────────────────────────────────────────────
+
+
+def test_layout_entry_from_dict_nested_form():
+    d = {"icon": {"min": 1, "max": 4}, "info": {"min": 0, "max": 2}, "size": "medium", "cols": 2}
+    layout = LayoutEntry.from_dict(d)
+    assert layout.icon_min == 1
+    assert layout.icon_max == 4
+    assert layout.info_min == 0
+    assert layout.info_max == 2
+    assert layout.size == "medium"
+    assert layout.cols == 2
+
+
+def test_layout_entry_from_dict_flat_form():
+    d = {"icon_min": 1, "icon_max": 4, "info_min": 0, "info_max": 2, "size": "medium", "cols": 2}
+    layout = LayoutEntry.from_dict(d)
+    assert layout.icon_min == 1
+    assert layout.icon_max == 4
+    assert layout.info_min == 0
+    assert layout.info_max == 2
+    assert layout.size == "medium"
+    assert layout.cols == 2
+
+
+def test_layout_entry_from_dict_invalid_form_raises():
+    d = {"something_unknown": 99}
+    with pytest.raises(ValueError):
+        LayoutEntry.from_dict(d)
+
+
+# ── _parse_color / compute_coordinates ────────────────────────────────────
+
+
+def test_named_color_orange_produces_correct_rgb():
+    """Named color 'orange' must resolve to (255, 165, 0), not white fallback."""
+    from python_solver.layout import _parse_color, compute_coordinates
+
+    r, g, b = _parse_color("orange")
+    assert (r, g, b) == (255, 165, 0)
+
+
+def test_compute_coordinates_orange_color_in_glyph_entry():
+    """compute_coordinates passes named color through to GlyphEntry correctly."""
+    from python_solver.layout import _parse_color, compute_coordinates
+    from python_solver.types import ActiveEntry, EntityConfig, Rule, WhenCondition, ThenAction
+
+    profile = _make_profile()
+    layout = LayoutEntry(icon_min=0, icon_max=8, size="large", cols=4, info_min=0, info_max=4)
+    entity_cfg = EntityConfig(
+        id="cx",
+        entity_id="sensor.x",
+        glyph="home",
+        rules=[Rule(when=WhenCondition(state="on"), then=ThenAction(tier="warning", color="orange"))],
+    )
+    entry = ActiveEntry(
+        entity_config=entity_cfg,
+        tier="warning",
+        color="orange",
+        glyph_name=_glyph_resolver("home"),
+        show_info=True,
+        focus_mode=False,
+        indicator_only=False,
+        drive_zone_indicator=False,
+    )
+    glyphs = compute_coordinates(profile, layout, [entry], _NOW)
+    assert len(glyphs) == 1
+    assert (glyphs[0].r, glyphs[0].g, glyphs[0].b) == (255, 165, 0)
+
+
+# ── severity bar idle with hide_when_idle=False ────────────────────────────
+
+
+def test_severity_bar_idle_hide_when_idle_false_returns_entry():
+    """When idle and hide_when_idle=False, severity_bar is a SeverityBarEntry, not None."""
+    from python_solver.types import SeverityBarEntry
+
+    sbar = SeverityBarConfig(edge="bottom", thickness_px=4, color="#ffffff", hide_when_idle=False)
+    profile = _make_profile(severity_bar=sbar)
+    result = solve(
+        entity_configs=[],
+        states={},
+        tiers=["critical", "warning", "info"],
+        defaults=Defaults(),
+        profile=profile,
+        glyph_resolver=_glyph_resolver,
+        groups=[],
+        now=_NOW,
+    )
+    assert result.severity_bar is not None
+    assert isinstance(result.severity_bar, SeverityBarEntry)
+    # Idle means fill_ratio=0, so the bar has zero width (bottom edge)
+    assert result.severity_bar.w == 0
+    assert result.severity_bar.h == profile.severity_bar.thickness_px
+
+
+# ── zone shortcut top-left respects margin_px ─────────────────────────────
+
+
+def test_zone_top_left_shortcut_respects_margin_px():
+    """Named zone shortcut 'top-left' must start at (margin_x, margin_y), not (0, 0)."""
+    margin_x, margin_y = 8, 8
+    zone_slot = ZoneSlot(id="z1", position="top-left")
+    cfg, states = _make_config(cid="c1", entity_id="sensor.a", zone="z1")
+    profile = _make_profile(zones=[zone_slot])
+    # Confirm profile margin_px matches our expectation
+    assert profile.margin_px == (margin_x, margin_y)
+
+    result = solve(
+        entity_configs=[cfg],
+        states=states,
+        tiers=["critical", "warning", "info"],
+        defaults=Defaults(),
+        profile=profile,
+        glyph_resolver=_glyph_resolver,
+        groups=[],
+        now=_NOW,
+    )
+    assert len(result.zones) == 1
+    zone = result.zones[0]
+    assert zone.x == margin_x, f"Expected x={margin_x}, got {zone.x}"
+    assert zone.y == margin_y, f"Expected y={margin_y}, got {zone.y}"

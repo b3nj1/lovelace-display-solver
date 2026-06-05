@@ -95,7 +95,7 @@ class GroupConfig:
 @dataclass
 class GlyphSize:
     px: int
-    fits_cols: int
+    fits_cols: int = 1
 
 
 @dataclass
@@ -106,6 +106,52 @@ class LayoutEntry:
     cols: int
     info_min: int
     info_max: int
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'LayoutEntry':
+        """Accept either nested YAML form (icon.min/icon.max, info.min/info.max)
+        or flat form (icon_min/icon_max, info_min/info_max)."""
+        if 'icon' in d and isinstance(d['icon'], dict):
+            # Nested form
+            icon = d['icon']
+            info = d.get('info', {})
+            missing = [k for k in ('min', 'max') if k not in icon]
+            if missing:
+                raise ValueError(
+                    f"LayoutEntry nested form missing icon.{missing[0]}; "
+                    f"expected keys: icon.min, icon.max"
+                )
+            return cls(
+                icon_min=int(icon['min']),
+                icon_max=int(icon['max']),
+                size=str(d.get('size', 'medium')),
+                cols=int(d.get('cols', 1)),
+                info_min=int(info.get('min', 0)),
+                info_max=int(info.get('max', 0)),
+            )
+        elif 'icon_min' in d or 'icon_max' in d:
+            # Flat form — require both keys
+            missing = [k for k in ('icon_min', 'icon_max') if k not in d]
+            if missing:
+                raise ValueError(
+                    f"LayoutEntry flat form is missing required key(s): {missing}; "
+                    f"expected keys: icon_min, icon_max"
+                )
+            return cls(
+                icon_min=int(d['icon_min']),
+                icon_max=int(d['icon_max']),
+                size=str(d.get('size', 'medium')),
+                cols=int(d.get('cols', 1)),
+                info_min=int(d.get('info_min', 0)),
+                info_max=int(d.get('info_max', 0)),
+            )
+        else:
+            offending = list(d.keys())
+            raise ValueError(
+                f"LayoutEntry dict has unrecognized keys {offending!r}; "
+                f"expected either nested form (icon.min, icon.max) "
+                f"or flat form (icon_min, icon_max)."
+            )
 
 
 @dataclass
@@ -196,6 +242,7 @@ class SolverResult:
     error: bool = False
     warnings: list[str] = field(default_factory=list)
     page_count: int = 1
+    error_reason: str = ""
 
 
 def _is_empty_when(when: WhenCondition) -> bool:

@@ -57,11 +57,23 @@ def select_layout(
     return None
 
 
+_NAMED_COLORS: dict[str, tuple[int, int, int]] = {
+    "white":  (255, 255, 255),
+    "orange": (255, 165,   0),
+    "red":    (255,   0,   0),
+    "purple": (128,   0, 128),
+    "green":  (  0, 128,   0),
+    "blue":   (  0,   0, 255),
+    "yellow": (255, 255,   0),
+}
+
+
 def compute_coordinates(
     profile: DisplayProfile,
     layout: LayoutEntry,
     entries: list[ActiveEntry],
     burn_in_now: datetime | None = None,
+    warnings: list[str] | None = None,
 ) -> list[GlyphEntry]:
     if burn_in_now is None:
         burn_in_now = datetime.now()
@@ -89,7 +101,7 @@ def compute_coordinates(
         x = origin_x + col * size_px
         y = origin_y + row * size_px
 
-        r, g, b = _parse_color(entry.color)
+        r, g, b = _parse_color(entry.color, warnings=warnings)
 
         result.append(
             GlyphEntry(
@@ -111,17 +123,37 @@ def compute_coordinates(
     return result
 
 
-def _parse_color(color: str | None) -> tuple[int, int, int]:
-    """Minimal color parser: supports #rrggbb hex strings; falls back to white."""
+def _parse_color(
+    color: str | None,
+    warnings: list[str] | None = None,
+) -> tuple[int, int, int]:
+    """Minimal color parser.
+
+    Supports:
+    - ``#rrggbb`` hex strings
+    - Named colors from ``_NAMED_COLORS``
+
+    Falls back to white for unrecognized values. When ``warnings`` is provided,
+    appends a warning for unrecognized color strings instead of silently falling
+    back.
+    """
     if not color:
         return (255, 255, 255)
-    color = color.strip()
-    if color.startswith("#") and len(color) == 7:
+    stripped = color.strip()
+    if stripped.startswith("#") and len(stripped) == 7:
         try:
-            r = int(color[1:3], 16)
-            g = int(color[3:5], 16)
-            b = int(color[5:7], 16)
+            r = int(stripped[1:3], 16)
+            g = int(stripped[3:5], 16)
+            b = int(stripped[5:7], 16)
             return r, g, b
         except ValueError:
             pass
-    return 255, 255, 255
+    named = _NAMED_COLORS.get(stripped.lower())
+    if named is not None:
+        return named
+    if warnings is not None:
+        warnings.append(
+            f"Unrecognized color '{color}'; falling back to white. "
+            f"Use a #rrggbb hex value or one of: {', '.join(sorted(_NAMED_COLORS))}."
+        )
+    return (255, 255, 255)

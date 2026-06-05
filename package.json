@@ -1,0 +1,21 @@
+{
+  "name": "lovelace-display-solver",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lit": "^3"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "rollup": "^4",
+    "@rollup/plugin-typescript": "^11",
+    "@rollup/plugin-terser": "*",
+    "vitest": "*",
+    "@types/node": "*"
+  }
+}

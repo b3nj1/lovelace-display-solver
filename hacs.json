@@ -1,0 +1,7 @@
+{
+  "name": "Display Solver Card",
+  "render_readme": false,
+  "filename": "display-solver.js",
+  "homeassistant": "2024.4.0",
+  "hacs": "1.32.0"
+}

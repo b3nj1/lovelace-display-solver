@@ -65,7 +65,7 @@ export function selectLayout(
   return null;
 }
 
-function computeBurnInOffsets(profile: DisplayProfile, now: Date): { xOffset: number; yOffset: number } {
+export function computeBurnInOffsets(profile: DisplayProfile, now: Date): { xOffset: number; yOffset: number } {
   if (profile.burn_in_drift) {
     const xOffset = Math.floor(now.getHours() / 23 * profile.margin_px[0]);
     const yOffset = Math.floor(now.getMinutes() / 59 * profile.margin_px[1]);

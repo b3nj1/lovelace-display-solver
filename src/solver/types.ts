@@ -177,7 +177,10 @@ export interface SolverResult {
   severity_bar: SeverityBarEntry | null;
   layout: LayoutEntry;
   error: boolean;
+  errorReason?: string;
   warnings: string[];
+  /** Total icon pages. 1 = no overflow. If >1, the caller must schedule a dwell
+   *  callback (profile.page_dwell_s seconds) to advance currentPage and re-call solve(). */
   page_count: number;
 }
 

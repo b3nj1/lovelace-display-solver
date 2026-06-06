@@ -148,6 +148,9 @@ export class DisplaySolverCard extends LitElement {
   }
 
   static getConfigElement(): HTMLElement {
+    // fire-and-forget; editor element registers itself on module load.
+    // This only works correctly because rollup.config.js uses inlineDynamicImports: true.
+    import('./editor.js');
     return document.createElement('display-solver-card-editor');
   }
 

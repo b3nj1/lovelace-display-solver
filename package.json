@@ -13,8 +13,10 @@
   "devDependencies": {
     "@rollup/plugin-terser": "*",
     "@rollup/plugin-typescript": "^11",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "*",
     "happy-dom": "^20.10.1",
+    "js-yaml": "^4.2.0",
     "rollup": "^4",
     "typescript": "^5",
     "vitest": "*"

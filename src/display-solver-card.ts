@@ -219,12 +219,11 @@ declare global {
   }
 }
 
-// TODO: replace YOUR_ORG with the real GitHub org before publishing
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'display-solver-card',
   name: 'Display Solver',
   description: 'Priority dashboard for ESPHome and Chromecast displays',
   preview: true,
-  documentationURL: 'https://github.com/YOUR_ORG/lovelace-display-solver',
+  documentationURL: 'https://github.com/b3nj1/lovelace-display-solver',
 });

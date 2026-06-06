@@ -237,8 +237,7 @@ export class DisplaySolverCardEditor extends LitElement {
         <button class="add-btn" @click=${this._addProfile}>+ Add profile</button>
         <p class="yaml-note">
           Advanced layout and zone configuration: edit the card YAML directly.
-          See the README in this repository for the full schema reference.
-          <!-- TODO: replace with real docs URL before publishing to HACS -->
+          See the <a href="https://github.com/b3nj1/lovelace-display-solver#readme" target="_blank" rel="noopener">README</a> for the full schema reference.
         </p>
       </div>
     `;
@@ -359,6 +358,7 @@ export class DisplaySolverCardEditor extends LitElement {
     .remove-btn { background: transparent; color: var(--error-color, red); border: 1px solid var(--error-color, red); padding: 4px 10px; border-radius: 4px; cursor: pointer; align-self: flex-start; }
     .toggle-btn { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); padding: 4px 10px; border-radius: 4px; cursor: pointer; }
     .yaml-note { font-size: 0.85em; color: var(--secondary-text-color); margin: 8px 0 0; }
+    .yaml-note a { color: var(--primary-color); }
     .field-hint { font-size: 0.8em; color: var(--secondary-text-color); margin: 2px 0 8px; }
     .field-hint a { color: var(--primary-color); }
     .field-hint code { background: var(--secondary-background-color, #f5f5f5); padding: 1px 4px; border-radius: 3px; }

@@ -1,2 +1,6 @@
 __pycache__
 node_modules
+dist/
+*.js.map
+python_solver/__pycache__/
+appdaemon/apps/display_solver/__pycache__/

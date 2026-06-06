@@ -11,11 +11,12 @@
     "lit": "^3"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "rollup": "^4",
-    "@rollup/plugin-typescript": "^11",
     "@rollup/plugin-terser": "*",
-    "vitest": "*",
-    "@types/node": "*"
+    "@rollup/plugin-typescript": "^11",
+    "@types/node": "*",
+    "happy-dom": "^20.10.1",
+    "rollup": "^4",
+    "typescript": "^5",
+    "vitest": "*"
   }
 }

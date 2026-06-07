@@ -5,16 +5,18 @@ export const VIEWING_DISTANCE_PRESETS: Record<string, {
   max_size: string;
   max_info_rows: number;
   prefer_fewer_icons: boolean;
+  prefer_dense: boolean;
 }> = {
-  far:   { max_size: 'large',  max_info_rows: 0, prefer_fewer_icons: true  },
-  near:  { max_size: 'medium', max_info_rows: 4, prefer_fewer_icons: false },
-  close: { max_size: 'tiny',   max_info_rows: 6, prefer_fewer_icons: false },
+  far:   { max_size: 'large',  max_info_rows: 0, prefer_fewer_icons: true,  prefer_dense: false },
+  near:  { max_size: 'medium', max_info_rows: 4, prefer_fewer_icons: false, prefer_dense: false },
+  close: { max_size: 'tiny',   max_info_rows: 6, prefer_fewer_icons: false, prefer_dense: true  },
 };
 
 export function expandViewingDistance(profile: DisplayProfile): {
   max_size: string;
   max_info_rows: number;
   prefer_fewer_icons: boolean;
+  prefer_dense: boolean;
 } {
   const preset = VIEWING_DISTANCE_PRESETS[profile.viewing_distance];
   if (preset === undefined) {
@@ -35,8 +37,15 @@ export function selectLayout(
   const sizeKeys = Object.keys(profile.glyph_sizes);
   const maxSizeIndex = sizeKeys.indexOf(constraints.max_size);
 
-  for (const layout of profile.layouts) {
-    // Filter by max_size: layout.icon.size must be at or after max_size in the key list
+  // close: prefer densest (smallest) layout — iterate smallest-first by reversing.
+  // far/near: prefer largest matching — iterate as declared (largest-first).
+  const orderedLayouts = constraints.prefer_dense
+    ? [...profile.layouts].reverse()
+    : profile.layouts;
+
+  for (const layout of orderedLayouts) {
+    // Filter by max_size: layout.icon.size must be at or after max_size in the key list.
+    // Only applies when max_size is actually present in this profile's glyph_sizes.
     if (maxSizeIndex !== -1) {
       const layoutSizeIndex = sizeKeys.indexOf(layout.icon.size);
       if (layoutSizeIndex === -1 || layoutSizeIndex < maxSizeIndex) {

@@ -12,6 +12,10 @@ export class DisplaySolverCardEditor extends LitElement {
     this._config = config;
   }
 
+  get hass(): Record<string, unknown> | undefined {
+    return this._hass;
+  }
+
   set hass(hass: Record<string, unknown>) {
     this._hass = hass;
   }

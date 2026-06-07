@@ -177,10 +177,23 @@ export class DisplaySolverCard extends LitElement {
         screen_px: [256, 256],
         margin_px: [8, 8],
         burn_in_drift: false,
-        viewing_distance: 'close',
+        // 'near' is the default so switching to 'far' shows bigger icons
+        // and switching to 'close' shows denser smaller icons.
+        viewing_distance: 'near',
         idle_glyph: 'check_circle',
-        glyph_sizes: { small: { px: 48, fits_cols: 3 } },
-        layouts: [{ icon: { min: 1, max: 9, size: 'small', cols: 3 }, info: { min: 0, max: 2 } }],
+        // Declare largest-to-smallest so selectLayout can determine relative sizes.
+        glyph_sizes: {
+          large:  { px: 96, fits_cols: 2 },
+          medium: { px: 48, fits_cols: 3 },
+          small:  { px: 24, fits_cols: 4 },
+        },
+        // Ordered largest-to-smallest; selectLayout picks the first match after
+        // applying the viewing_distance filter.
+        layouts: [
+          { icon: { min: 1, max: 4,  size: 'large',  cols: 2 }, info: { min: 0, max: 0 } },
+          { icon: { min: 1, max: 9,  size: 'medium', cols: 3 }, info: { min: 0, max: 2 } },
+          { icon: { min: 1, max: 16, size: 'small',  cols: 4 }, info: { min: 0, max: 3 } },
+        ],
       }],
     };
   }

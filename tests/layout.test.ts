@@ -86,6 +86,21 @@ describe('3 — expandViewingDistance: close', () => {
     const result = expandViewingDistance(profile);
     expect(result.max_info_rows).toBe(6);
   });
+
+  test('"close" → prefer_dense: true', () => {
+    const profile = makeProfile('close');
+    const result = expandViewingDistance(profile);
+    expect(result.prefer_dense).toBe(true);
+  });
+});
+
+describe('3b — expandViewingDistance: far and near have prefer_dense: false', () => {
+  test('"far" → prefer_dense: false', () => {
+    expect(expandViewingDistance(makeProfile('far')).prefer_dense).toBe(false);
+  });
+  test('"near" → prefer_dense: false', () => {
+    expect(expandViewingDistance(makeProfile('near')).prefer_dense).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -388,6 +403,66 @@ describe('15 — computeInfoCoordinates: throws on unknown icon.size', () => {
     expect(() => computeInfoCoordinates(profile, layout, 2)).toThrow(
       /nonexistent/
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Viewing-distance layout selection: far / near / close pick different layouts
+//
+// The stub config (and any real multi-layout profile) declares layouts
+// largest-to-smallest. selectLayout must select the appropriate density for
+// each viewing distance.
+//
+// Profile used below has large/medium/small but NOT tiny, so:
+//   far   → maxSizeIndex = 0 ('large') → no filter → first layout (large) wins
+//   near  → maxSizeIndex = 1 ('medium') → large skipped → medium wins
+//   close → maxSizeIndex = -1 ('tiny' absent) → filter disabled;
+//             prefer_dense=true reverses iteration → small (last declared) wins
+// ---------------------------------------------------------------------------
+
+describe('selectLayout: far/near/close choose different layouts', () => {
+  const threeLayoutProfile = (distance: 'far' | 'near' | 'close'): DisplayProfile => ({
+    id: 'multi',
+    type: 'canvas',
+    screen_px: [256, 256],
+    margin_px: [8, 8],
+    burn_in_drift: false,
+    viewing_distance: distance,
+    idle_glyph: 'check_circle',
+    glyph_sizes: {
+      large:  { px: 96, fits_cols: 2 },
+      medium: { px: 48, fits_cols: 3 },
+      small:  { px: 24, fits_cols: 4 },
+    },
+    layouts: [
+      { icon: { min: 1, max: 4,  size: 'large',  cols: 2 }, info: { min: 0, max: 0 } },
+      { icon: { min: 1, max: 9,  size: 'medium', cols: 3 }, info: { min: 0, max: 2 } },
+      { icon: { min: 1, max: 16, size: 'small',  cols: 4 }, info: { min: 0, max: 3 } },
+    ],
+  });
+
+  test('far → selects large layout (96px)', () => {
+    const result = selectLayout(threeLayoutProfile('far'), 1, false);
+    expect(result?.icon.size).toBe('large');
+  });
+
+  test('near → selects medium layout (48px), skipping large', () => {
+    const result = selectLayout(threeLayoutProfile('near'), 1, false);
+    expect(result?.icon.size).toBe('medium');
+  });
+
+  test('close → selects small layout (24px) via prefer_dense reversal', () => {
+    const result = selectLayout(threeLayoutProfile('close'), 1, false);
+    expect(result?.icon.size).toBe('small');
+  });
+
+  test('all three distances produce different icon sizes', () => {
+    const far   = selectLayout(threeLayoutProfile('far'),   1, false)?.icon.size;
+    const near  = selectLayout(threeLayoutProfile('near'),  1, false)?.icon.size;
+    const close = selectLayout(threeLayoutProfile('close'), 1, false)?.icon.size;
+    expect(far).not.toBe(near);
+    expect(near).not.toBe(close);
+    expect(far).not.toBe(close);
   });
 });
 

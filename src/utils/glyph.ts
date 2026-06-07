@@ -184,7 +184,33 @@ export const MSS_CODEPOINTS: Record<string, string> = {
 };
 
 /**
- * Resolve a glyph name to its codepoint string.
+ * Resolve a glyph name to a Material Symbols Sharp ligature string for canvas rendering.
+ *
+ * Returns the MSS icon name (e.g. "garage") which the MSS variable font renders via
+ * OpenType ligature substitution. MDI names are mapped to their MSS equivalent.
+ */
+export function resolveGlyphForCanvas(name: string): string {
+  if (!name) return MDI_FALLBACK;
+  if (name === 'entity') {
+    throw new Error('resolveGlyphForCanvas: "entity" must be resolved to a concrete name before calling');
+  }
+  if (name.startsWith('mdi:')) {
+    const mssName = MDI_TO_MSS[name];
+    if (mssName === undefined) {
+      console.warn(`resolveGlyphForCanvas: no MDI→MSS mapping for "${name}" — add it to MDI_TO_MSS or use a Material Symbols Sharp name directly`);
+      return MDI_FALLBACK;
+    }
+    return mssName;
+  }
+  // Raw unicode passthrough
+  if (name.length === 1 && (name.codePointAt(0) ?? 0) > 127) return name;
+  if (name.length === 2 && (name.codePointAt(0) ?? 0) > 0xFFFF) return name;
+  // MSS name — return as-is; font ligature maps it to the correct icon
+  return name;
+}
+
+/**
+ * Resolve a glyph name to its Unicode codepoint character for ESPHome rendering.
  *
  * Cases:
  *   1. Empty string         -> MDI_FALLBACK ('?')

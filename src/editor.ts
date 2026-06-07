@@ -52,7 +52,9 @@ export class DisplaySolverCardEditor extends LitElement {
           label="When entity unavailable"
           .value=${this._config?.defaults?.unavailable_action ?? 'hide'}
           @selected=${(e: CustomEvent) => {
-            this._dispatch({ ...this._config!, defaults: { ...this._config!.defaults, unavailable_action: (e.detail as { value: 'hide' | 'show' }).value } });
+            const value = (e.target as HTMLElement & { value: string }).value as 'hide' | 'show';
+            if (!value || value === (this._config?.defaults?.unavailable_action ?? 'hide')) return;
+            this._dispatch({ ...this._config!, defaults: { ...this._config!.defaults, unavailable_action: value } });
           }}
         >
           <mwc-list-item value="hide">Hide (recommended)</mwc-list-item>
@@ -96,7 +98,10 @@ export class DisplaySolverCardEditor extends LitElement {
               .value=${ent.entity_id}
               label="Entity"
               allow-custom-entity
-              @value-changed=${(e: CustomEvent) => this._updateEntity(i, { ...ent, entity_id: (e.detail as { value: string }).value })}
+              @value-changed=${(e: CustomEvent) => {
+                const newId = (e.detail as { value: string }).value;
+                this._changeEntityId(i, newId, ent);
+              }}
             ></ha-entity-picker>`
           : html`<ha-textfield
               label="Entity ID (e.g. binary_sensor.garage)"
@@ -153,7 +158,9 @@ export class DisplaySolverCardEditor extends LitElement {
               label="Action"
               .value=${rule.then.action}
               @selected=${(e: CustomEvent) => {
-                const updated: Rule = { ...rule, then: { ...rule.then, action: (e.detail as { value: 'show' | 'hide' | 'indicator' }).value } };
+                const value = (e.target as HTMLElement & { value: string }).value as 'show' | 'hide' | 'indicator';
+                if (!value || value === rule.then.action) return;
+                const updated: Rule = { ...rule, then: { ...rule.then, action: value } };
                 this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
               }}
             >
@@ -165,7 +172,9 @@ export class DisplaySolverCardEditor extends LitElement {
               label="Tier"
               .value=${rule.then.tier ?? ''}
               @selected=${(e: CustomEvent) => {
-                const updated: Rule = { ...rule, then: { ...rule.then, tier: (e.detail as { value: string }).value || undefined } };
+                const value = (e.target as HTMLElement & { value: string }).value;
+                if (value === (rule.then.tier ?? '')) return;
+                const updated: Rule = { ...rule, then: { ...rule.then, tier: value || undefined } };
                 this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
               }}
             >
@@ -195,6 +204,18 @@ export class DisplaySolverCardEditor extends LitElement {
         }>+ Add rule</button>
       </div>
     `;
+  }
+
+  // Extracted so tests can call it directly without simulating DOM events.
+  _changeEntityId(index: number, newId: string, ent: EntityConfig): void {
+    if (!newId || newId === ent.entity_id) return;
+    // Reset rules so stale state-match rules from the old entity don't carry over.
+    this._updateEntity(index, {
+      ...ent,
+      entity_id: newId,
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: this._config!.tiers?.[0], color: 'red' } }],
+      thresholds: undefined,
+    });
   }
 
   private _updateEntity(i: number, updated: EntityConfig): void {
@@ -254,7 +275,11 @@ export class DisplaySolverCardEditor extends LitElement {
         <ha-select
           label="Output type"
           .value=${p.type}
-          @selected=${(e: CustomEvent) => this._updateProfile(i, { ...p, type: (e.detail as { value: DisplayProfile['type'] }).value })}
+          @selected=${(e: CustomEvent) => {
+            const value = (e.target as HTMLElement & { value: string }).value as DisplayProfile['type'];
+            if (!value || value === p.type) return;
+            this._updateProfile(i, { ...p, type: value });
+          }}
         >
           <mwc-list-item value="canvas">Canvas (browser preview)</mwc-list-item>
           <mwc-list-item value="esphome">ESPHome display</mwc-list-item>
@@ -288,7 +313,11 @@ export class DisplaySolverCardEditor extends LitElement {
         <ha-select
           label="Viewing distance"
           .value=${p.viewing_distance}
-          @selected=${(e: CustomEvent) => this._updateProfile(i, { ...p, viewing_distance: (e.detail as { value: DisplayProfile['viewing_distance'] }).value })}
+          @selected=${(e: CustomEvent) => {
+            const value = (e.target as HTMLElement & { value: string }).value as DisplayProfile['viewing_distance'];
+            if (!value || value === p.viewing_distance) return;
+            this._updateProfile(i, { ...p, viewing_distance: value });
+          }}
         >
           <mwc-list-item value="close">Close (desk / tablet)</mwc-list-item>
           <mwc-list-item value="near">Near (across the room)</mwc-list-item>

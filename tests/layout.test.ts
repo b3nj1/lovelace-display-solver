@@ -333,6 +333,51 @@ describe('14 — computeGlyphCoordinates: throws on unknown icon.size', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bug 2 regression: info y must be strictly above the glyph baseline
+//
+// Before the fix, infoOriginY = margin_y + glyphAreaHeight, which is the same
+// y-coordinate that drawGlyphs uses as the text baseline.  Both canvas
+// fillText calls landed on the same pixel, causing visible overlap.
+// The fix adds 14 px of padding so the first info line clears the glyph bottom.
+// ---------------------------------------------------------------------------
+
+describe('computeInfoCoordinates: y clears the glyph baseline (overlap regression)', () => {
+  test('infoCoords.y > margin_y + glyphAreaHeight for a single 48px icon', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 4, size: 'large', cols: 2 },
+      info: { min: 0, max: 2 },
+    };
+    // margin_y = 8, cellSize = 48, glyphAreaHeight = ceil(1/2)*48 = 48
+    const profile = makeProfile('near', {
+      margin_px: [8, 8],
+      glyph_sizes: { large: { px: 48, fits_cols: 2 } },
+      layouts: [layout],
+    });
+    const glyphAreaHeight = Math.ceil(1 / layout.icon.cols) * 48; // 48
+    const coords = computeInfoCoordinates(profile, layout, 1);
+    const glyphBaseline = profile.margin_px[1] + glyphAreaHeight; // 56
+    expect(coords.y).toBeGreaterThan(glyphBaseline);
+  });
+
+  test('infoCoords.y > margin_y + glyphAreaHeight for multiple icon rows', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'large', cols: 2 },
+      info: { min: 0, max: 2 },
+    };
+    // 4 icons, 2 cols → 2 rows of 48px → glyphAreaHeight = 96
+    const profile = makeProfile('near', {
+      margin_px: [8, 8],
+      glyph_sizes: { large: { px: 48, fits_cols: 2 } },
+      layouts: [layout],
+    });
+    const glyphAreaHeight = Math.ceil(4 / layout.icon.cols) * 48; // 96
+    const coords = computeInfoCoordinates(profile, layout, 4);
+    const glyphBaseline = profile.margin_px[1] + glyphAreaHeight; // 104
+    expect(coords.y).toBeGreaterThan(glyphBaseline);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 15. computeInfoCoordinates throws on unknown icon.size
 // ---------------------------------------------------------------------------
 

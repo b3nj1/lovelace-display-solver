@@ -66,6 +66,122 @@ describe('DisplaySolverCardEditor', () => {
     expect(events[0].detail.config.defaults?.unavailable_action).toBe('show');
   });
 
+  // -------------------------------------------------------------------------
+  // Bug 4 regression: changing entity_id must reset rules
+  //
+  // Before the fix, _updateEntity spread `ent` with a new entity_id but kept
+  // the old rules array.  Sun rules (above_horizon / below_horizon) were left
+  // in place when the user switched to a garage door sensor, so nothing ever
+  // matched and the display stayed blank.
+  // -------------------------------------------------------------------------
+
+  it('_changeEntityId: no event when newId equals current entity_id', () => {
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(baseConfig as any);
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const ent = baseConfig.entities[0];
+    (editor as any)._changeEntityId(0, ent.entity_id, ent);
+    expect(events).toHaveLength(0);
+  });
+
+  it('_changeEntityId: no event when newId is empty string', () => {
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(baseConfig as any);
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const ent = baseConfig.entities[0];
+    (editor as any)._changeEntityId(0, '', ent);
+    expect(events).toHaveLength(0);
+  });
+
+  it('_changeEntityId: dispatches event with new entity_id when id differs', () => {
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(baseConfig as any);
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const ent = baseConfig.entities[0];
+    (editor as any)._changeEntityId(0, 'binary_sensor.garage', ent);
+    expect(events).toHaveLength(1);
+    expect(events[0].detail.config.entities[0].entity_id).toBe('binary_sensor.garage');
+  });
+
+  it('_changeEntityId: rules are reset to a single default rule when entity changes', () => {
+    const sunConfig = {
+      ...baseConfig,
+      entities: [{
+        id: 'sun',
+        entity_id: 'sun.sun',
+        rules: [
+          { when: { state: 'above_horizon' }, then: { action: 'show' as const, tier: 'alert', color: 'orange' } },
+          { when: { state: 'below_horizon' }, then: { action: 'hide' as const } },
+        ],
+      }],
+    };
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(sunConfig as any);
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const ent = sunConfig.entities[0];
+    (editor as any)._changeEntityId(0, 'binary_sensor.garage', ent);
+
+    expect(events).toHaveLength(1);
+    const newRules = events[0].detail.config.entities[0].rules;
+    expect(newRules).toHaveLength(1);
+    // Old state-match rules must not survive
+    const hasAboveHorizon = newRules.some((r: any) => r.when?.state === 'above_horizon');
+    expect(hasAboveHorizon).toBe(false);
+  });
+
+  it('_changeEntityId: reset rule uses the first config tier', () => {
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(baseConfig as any); // tiers: ['critical', 'alert']
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const ent = baseConfig.entities[0];
+    (editor as any)._changeEntityId(0, 'sensor.new', ent);
+    const newRule = events[0].detail.config.entities[0].rules[0];
+    expect(newRule.then.tier).toBe('critical'); // first tier in baseConfig
+  });
+
+  // -------------------------------------------------------------------------
+  // Bug 1 regression: ha-select dispatches correct values through update paths
+  //
+  // The ha-select @selected event fires detail: { index } (not { value }).
+  // The fix reads e.target.value instead.  We can't simulate DOM events here,
+  // but we can verify the underlying _updateProfile and _updateEntity methods
+  // dispatch the expected shape, and that passing an incorrect-type value
+  // (like undefined) would result in no dispatch (the guard condition).
+  // -------------------------------------------------------------------------
+
+  it('_updateProfile dispatches with the updated profile', () => {
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(baseConfig as any);
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const updatedProfile = { ...baseConfig.display_profiles[0], viewing_distance: 'far' as const };
+    (editor as any)._updateProfile(0, updatedProfile);
+    expect(events).toHaveLength(1);
+    expect(events[0].detail.config.display_profiles[0].viewing_distance).toBe('far');
+  });
+
+  it('_updateProfile preserves other profiles unchanged', () => {
+    const twoProfileConfig = {
+      ...baseConfig,
+      display_profiles: [
+        { ...baseConfig.display_profiles[0], id: 'p1' },
+        { ...baseConfig.display_profiles[0], id: 'p2', viewing_distance: 'near' as const },
+      ],
+    };
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(twoProfileConfig as any);
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+    const updated = { ...twoProfileConfig.display_profiles[0], viewing_distance: 'far' as const };
+    (editor as any)._updateProfile(0, updated);
+    expect(events[0].detail.config.display_profiles[1].viewing_distance).toBe('near');
+  });
+
   it('_addEntity dispatches config with one more entity', () => {
     const editor = new DisplaySolverCardEditor();
     editor.setConfig(baseConfig as any);

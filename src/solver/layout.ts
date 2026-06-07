@@ -129,7 +129,10 @@ export function computeInfoCoordinates(
   const glyphAreaHeight = Math.ceil(iconCount / layout.icon.cols) * cellSize;
 
   const infoOriginX = Math.floor(profile.margin_px[0] + xOffset);
-  const infoOriginY = Math.floor(profile.margin_px[1] + yOffset + glyphAreaHeight);
+  // Add one line-height of padding so the first info baseline clears the glyph bottom.
+  // Canvas fillText uses y as the baseline; without this offset the text baseline lands
+  // exactly on the glyph baseline and they visually overlap.
+  const infoOriginY = Math.floor(profile.margin_px[1] + yOffset + glyphAreaHeight + 14);
 
   return { x: infoOriginX, y: infoOriginY, lineHeight: 12 };
 }

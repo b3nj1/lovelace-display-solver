@@ -5,7 +5,7 @@ import { validateCardConfig } from './solver/types';
 import { solve } from './solver/index';
 import { packESPhomePayload } from './adapters/esphome';
 import { renderToCanvas } from './adapters/canvas';
-import { resolveGlyph } from './utils/glyph';
+import { resolveGlyph, resolveGlyphForCanvas } from './utils/glyph';
 
 interface HomeAssistant {
   states: Record<string, { state: string; attributes: Record<string, unknown> }>;
@@ -54,6 +54,7 @@ export class DisplaySolverCard extends LitElement {
       this._pageState[profile.id] ??= { currentPage: 0 };
       const ps = this._pageState[profile.id];
 
+      const glyphResolver = profile.type === 'canvas' ? resolveGlyphForCanvas : resolveGlyph;
       const result = solve(
         this._config.entities,
         this._hass.states,
@@ -61,7 +62,7 @@ export class DisplaySolverCard extends LitElement {
         this._config.defaults ?? {},
         this._config.groups ?? [],
         profile,
-        resolveGlyph,
+        glyphResolver,
         ps.currentPage,
       );
 

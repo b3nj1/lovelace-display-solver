@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest';
-import { resolveGlyph, MDI_FALLBACK, MSS_CODEPOINTS } from '../src/utils/glyph.ts';
+import { resolveGlyph, resolveGlyphForCanvas, MDI_FALLBACK, MSS_CODEPOINTS, MDI_TO_MSS } from '../src/utils/glyph.ts';
 
 describe('resolveGlyph', () => {
   test('MSS name "garage" resolves to non-empty string that is not MDI_FALLBACK', () => {
@@ -94,6 +94,14 @@ describe('resolveGlyph', () => {
     }
   });
 
+  test('resolveGlyph("garage") returns a non-empty codepoint string — NOT the name itself', () => {
+    // resolveGlyph is for ESPHome: it returns a codepoint character, not the ligature name.
+    // This confirms the two resolvers are distinct.
+    const result = resolveGlyph('garage');
+    expect(result).not.toBe('garage');
+    expect(result).not.toBe(MDI_FALLBACK);
+  });
+
   test('all font_glyphs example names are present in MSS_CODEPOINTS', () => {
     const fontGlyphs = [
       'garage', 'door_open', 'lock', 'security', 'co2', 'air', 'factory',
@@ -107,5 +115,78 @@ describe('resolveGlyph', () => {
         `expected MSS_CODEPOINTS to have key "${name}"`
       ).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveGlyphForCanvas — Bug 3 regression: canvas renderer must use MSS
+// ligature names (not codepoints) so that ctx.fillText('garage', …) in the
+// Material Symbols Sharp font renders the correct garage icon via OpenType
+// ligature substitution.  Before the fix, resolveGlyph() was used for canvas
+// too, returning the (wrong) codepoint character which showed a paw print for
+// 'garage' and '?' for 'mdi:garage'.
+// ---------------------------------------------------------------------------
+
+describe('resolveGlyphForCanvas', () => {
+  test('"garage" returns the string "garage" (ligature name, not a codepoint char)', () => {
+    const result = resolveGlyphForCanvas('garage');
+    expect(result).toBe('garage');
+  });
+
+  test('"mdi:garage" maps through MDI_TO_MSS and returns the MSS name "garage"', () => {
+    expect(MDI_TO_MSS['mdi:garage']).toBe('garage'); // mapping sanity-check
+    const result = resolveGlyphForCanvas('mdi:garage');
+    expect(result).toBe('garage');
+  });
+
+  test('result is the bare MSS name, not a Unicode codepoint character', () => {
+    // Before the fix, resolveGlyph('garage') returned a char like U+E91D (paw print).
+    // resolveGlyphForCanvas must return the text name so MSS ligature rendering works.
+    const result = resolveGlyphForCanvas('garage');
+    const codepoint = result.codePointAt(0) ?? 0;
+    // MSS names are ASCII letters/underscores; codepoint must be <= 127
+    expect(codepoint).toBeLessThanOrEqual(127);
+    expect(result).not.toBe(MDI_FALLBACK);
+  });
+
+  test('"sunny" returns "sunny"', () => {
+    expect(resolveGlyphForCanvas('sunny')).toBe('sunny');
+  });
+
+  test('"mdi:weather-sunny" returns "sunny" (the MSS name)', () => {
+    expect(resolveGlyphForCanvas('mdi:weather-sunny')).toBe('sunny');
+  });
+
+  test('MDI name with no mapping returns MDI_FALLBACK and warns', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = resolveGlyphForCanvas('mdi:no-such-icon-xyz');
+      expect(result).toBe(MDI_FALLBACK);
+      expect(warnSpy).toHaveBeenCalledOnce();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('"entity" throws Error', () => {
+    expect(() => resolveGlyphForCanvas('entity')).toThrow(Error);
+  });
+
+  test('empty string returns MDI_FALLBACK', () => {
+    expect(resolveGlyphForCanvas('')).toBe(MDI_FALLBACK);
+  });
+
+  test('raw unicode char (> U+007F) passes through unchanged', () => {
+    const char = '\u{1F525}'; // fire emoji, codePoint 0x1F525 > 0xFFFF
+    expect(resolveGlyphForCanvas(char)).toBe(char);
+  });
+
+  test('MSS name is returned directly — not looked up in MSS_CODEPOINTS', () => {
+    // mode_fan has an empty codepoint in MSS_CODEPOINTS which causes resolveGlyph
+    // to fall back to MDI_FALLBACK.  resolveGlyphForCanvas must NOT do that lookup
+    // and must return the name itself so the font ligature system handles it.
+    expect(MSS_CODEPOINTS['mode_fan']).toBe(''); // confirm the codepoint is empty
+    const result = resolveGlyphForCanvas('mode_fan');
+    expect(result).toBe('mode_fan'); // canvas returns the name regardless
   });
 });

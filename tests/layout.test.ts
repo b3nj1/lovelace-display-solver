@@ -4,7 +4,6 @@ import {
   expandViewingDistance,
   selectLayout,
   computeGlyphCoordinates,
-  computeInfoCoordinates,
 } from '../src/solver/layout.js';
 import type { DisplayProfile, LayoutEntry, ActiveEntry } from '../src/solver/types.js';
 
@@ -347,64 +346,6 @@ describe('14 — computeGlyphCoordinates: throws on unknown icon.size', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Bug 2 regression: info y must be strictly above the glyph baseline
-//
-// Before the fix, infoOriginY = margin_y + glyphAreaHeight, which is the same
-// y-coordinate that drawGlyphs uses as the text baseline.  Both canvas
-// fillText calls landed on the same pixel, causing visible overlap.
-// The fix adds 14 px of padding so the first info line clears the glyph bottom.
-// ---------------------------------------------------------------------------
-
-describe('computeInfoCoordinates: y clears the glyph baseline (overlap regression)', () => {
-  test('infoCoords.y > margin_y + glyphAreaHeight for a single 48px icon', () => {
-    const layout: LayoutEntry = {
-      icon: { min: 1, max: 4, size: 'large', cols: 2 },
-      info: { min: 0, max: 2 },
-    };
-    // margin_y = 8, cellSize = 48, glyphAreaHeight = ceil(1/2)*48 = 48
-    const profile = makeProfile('near', {
-      margin_px: [8, 8],
-      glyph_sizes: { large: { px: 48, fits_cols: 2 } },
-      layouts: [layout],
-    });
-    const glyphAreaHeight = Math.ceil(1 / layout.icon.cols) * 48; // 48
-    const coords = computeInfoCoordinates(profile, layout, 1);
-    const glyphBaseline = profile.margin_px[1] + glyphAreaHeight; // 56
-    expect(coords.y).toBeGreaterThan(glyphBaseline);
-  });
-
-  test('infoCoords.y > margin_y + glyphAreaHeight for multiple icon rows', () => {
-    const layout: LayoutEntry = {
-      icon: { min: 1, max: 8, size: 'large', cols: 2 },
-      info: { min: 0, max: 2 },
-    };
-    // 4 icons, 2 cols → 2 rows of 48px → glyphAreaHeight = 96
-    const profile = makeProfile('near', {
-      margin_px: [8, 8],
-      glyph_sizes: { large: { px: 48, fits_cols: 2 } },
-      layouts: [layout],
-    });
-    const glyphAreaHeight = Math.ceil(4 / layout.icon.cols) * 48; // 96
-    const coords = computeInfoCoordinates(profile, layout, 4);
-    const glyphBaseline = profile.margin_px[1] + glyphAreaHeight; // 104
-    expect(coords.y).toBeGreaterThan(glyphBaseline);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 15. computeInfoCoordinates throws on unknown icon.size
-// ---------------------------------------------------------------------------
-
-describe('15 — computeInfoCoordinates: throws on unknown icon.size', () => {
-  test('throws when layout.icon.size is not in glyph_sizes (computeInfoCoordinates)', () => {
-    const profile = makeProfile('near');
-    const layout: LayoutEntry = { icon: { min: 1, max: 4, size: 'nonexistent', cols: 2 }, info: { min: 0, max: 0 } };
-    expect(() => computeInfoCoordinates(profile, layout, 2)).toThrow(
-      /nonexistent/
-    );
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Viewing-distance layout selection: far / near / close pick different layouts
@@ -413,11 +354,13 @@ describe('15 — computeInfoCoordinates: throws on unknown icon.size', () => {
 // largest-to-smallest. selectLayout must select the appropriate density for
 // each viewing distance.
 //
-// Profile used below has large/medium/small but NOT tiny, so:
-//   far   → maxSizeIndex = 0 ('large') → no filter → first layout (large) wins
-//   near  → maxSizeIndex = 1 ('medium') → large skipped → medium wins
-//   close → maxSizeIndex = -1 ('tiny' absent) → filter disabled;
-//             prefer_dense=true reverses iteration → small (last declared) wins
+// Profile below has large/medium/small (3 sizes).  skip_largest values:
+//   far   → skip_largest=0, minSizeIndex=0 → no filter → large wins
+//   near  → skip_largest=1, minSizeIndex=1 → large skipped → medium wins
+//   close → skip_largest=0 but prefer_dense=true → reverse iteration → small wins
+//
+// The 2-size variant confirms skip_largest=1 works when 'medium' is not a key
+// (the previous max_size='medium' approach silently disabled the filter there).
 // ---------------------------------------------------------------------------
 
 describe('selectLayout: far/near/close choose different layouts', () => {
@@ -463,6 +406,46 @@ describe('selectLayout: far/near/close choose different layouts', () => {
     expect(far).not.toBe(near);
     expect(near).not.toBe(close);
     expect(far).not.toBe(close);
+  });
+
+  // 2-size profile: 'large' and 'small', no 'medium'.
+  // With the old max_size='medium' approach, indexOf returned -1 → filter disabled →
+  // near and far both selected 'large' (no visible difference).
+  // With skip_largest=1, near skips the largest regardless of its name.
+  const twoLayoutProfile = (distance: 'far' | 'near' | 'close'): DisplayProfile => ({
+    id: 'two-size',
+    type: 'canvas',
+    screen_px: [256, 256],
+    margin_px: [8, 8],
+    burn_in_drift: false,
+    viewing_distance: distance,
+    idle_glyph: 'check_circle',
+    glyph_sizes: {
+      large: { px: 96, fits_cols: 2 },
+      small: { px: 24, fits_cols: 4 },
+    },
+    layouts: [
+      { icon: { min: 1, max: 4,  size: 'large', cols: 2 }, info: { min: 0, max: 0 } },
+      { icon: { min: 1, max: 16, size: 'small', cols: 4 }, info: { min: 0, max: 3 } },
+    ],
+  });
+
+  test('2-size profile: far → large', () => {
+    expect(selectLayout(twoLayoutProfile('far'), 2, false)?.icon.size).toBe('large');
+  });
+
+  test('2-size profile: near → small (skips the only "large" size)', () => {
+    expect(selectLayout(twoLayoutProfile('near'), 2, false)?.icon.size).toBe('small');
+  });
+
+  test('2-size profile: close → small (prefer_dense reversal)', () => {
+    expect(selectLayout(twoLayoutProfile('close'), 2, false)?.icon.size).toBe('small');
+  });
+
+  test('2-size profile: far and near produce different sizes', () => {
+    const far  = selectLayout(twoLayoutProfile('far'),  2, false)?.icon.size;
+    const near = selectLayout(twoLayoutProfile('near'), 2, false)?.icon.size;
+    expect(far).not.toBe(near);
   });
 });
 

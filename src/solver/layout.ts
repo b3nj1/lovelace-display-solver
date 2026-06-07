@@ -2,18 +2,23 @@ import { DisplayProfile, LayoutEntry, ActiveEntry, GlyphEntry } from './types';
 import { resolveColor } from '../utils/color';
 
 export const VIEWING_DISTANCE_PRESETS: Record<string, {
-  max_size: string;
+  // Number of the largest declared sizes to skip in the filter.
+  // 0 = no restriction (far — prefer the biggest icon).
+  // 1 = skip the single largest size (near — skip the biggest, use next tier down).
+  // close uses prefer_dense=true instead of skip_largest because it wants the
+  // smallest available size regardless of what names the profile uses.
+  skip_largest: number;
   max_info_rows: number;
   prefer_fewer_icons: boolean;
   prefer_dense: boolean;
 }> = {
-  far:   { max_size: 'large',  max_info_rows: 0, prefer_fewer_icons: true,  prefer_dense: false },
-  near:  { max_size: 'medium', max_info_rows: 4, prefer_fewer_icons: false, prefer_dense: false },
-  close: { max_size: 'tiny',   max_info_rows: 6, prefer_fewer_icons: false, prefer_dense: true  },
+  far:   { skip_largest: 0, max_info_rows: 0, prefer_fewer_icons: true,  prefer_dense: false },
+  near:  { skip_largest: 1, max_info_rows: 4, prefer_fewer_icons: false, prefer_dense: false },
+  close: { skip_largest: 0, max_info_rows: 6, prefer_fewer_icons: false, prefer_dense: true  },
 };
 
 export function expandViewingDistance(profile: DisplayProfile): {
-  max_size: string;
+  skip_largest: number;
   max_info_rows: number;
   prefer_fewer_icons: boolean;
   prefer_dense: boolean;
@@ -35,7 +40,12 @@ export function selectLayout(
   // NOTE: glyph_sizes keys must be declared largest-to-smallest in the profile.
   // selectLayout relies on Object.keys insertion order for size comparisons.
   const sizeKeys = Object.keys(profile.glyph_sizes);
-  const maxSizeIndex = sizeKeys.indexOf(constraints.max_size);
+
+  // Compute the minimum acceptable size index.
+  // skip_largest=0 → no restriction (all sizes OK).
+  // skip_largest=1 → skip the largest declared size, use second-tier or smaller.
+  // Clamped so a 1-size profile is never left with zero valid sizes.
+  const minSizeIndex = Math.min(constraints.skip_largest, sizeKeys.length - 1);
 
   // close: prefer densest (smallest) layout — iterate smallest-first by reversing.
   // far/near: prefer largest matching — iterate as declared (largest-first).
@@ -44,13 +54,12 @@ export function selectLayout(
     : profile.layouts;
 
   for (const layout of orderedLayouts) {
-    // Filter by max_size: layout.icon.size must be at or after max_size in the key list.
-    // Only applies when max_size is actually present in this profile's glyph_sizes.
-    if (maxSizeIndex !== -1) {
-      const layoutSizeIndex = sizeKeys.indexOf(layout.icon.size);
-      if (layoutSizeIndex === -1 || layoutSizeIndex < maxSizeIndex) {
-        continue;
-      }
+    // Filter by size: skip layouts whose icon size is "too large" for this distance.
+    // layoutSizeIndex < minSizeIndex means the size key appears earlier (= larger) in
+    // the declared list than the minimum we accept.
+    const layoutSizeIndex = sizeKeys.indexOf(layout.icon.size);
+    if (layoutSizeIndex !== -1 && layoutSizeIndex < minSizeIndex) {
+      continue;
     }
 
     // Filter by icon count
@@ -119,29 +128,4 @@ export function computeGlyphCoordinates(
       b,
     };
   });
-}
-
-export function computeInfoCoordinates(
-  profile: DisplayProfile,
-  layout: LayoutEntry,
-  iconCount: number,
-  now?: Date,
-): { x: number; y: number; lineHeight: number } {
-  const date = now ?? new Date();
-  const { xOffset, yOffset } = computeBurnInOffsets(profile, date);
-
-  const sizeEntry = profile.glyph_sizes[layout.icon.size];
-  if (sizeEntry === undefined) {
-    throw new Error(`layout.icon.size "${layout.icon.size}" is not defined in profile "${profile.id}" glyph_sizes`);
-  }
-  const cellSize = sizeEntry.px;
-  const glyphAreaHeight = Math.ceil(iconCount / layout.icon.cols) * cellSize;
-
-  const infoOriginX = Math.floor(profile.margin_px[0] + xOffset);
-  // Add one line-height of padding so the first info baseline clears the glyph bottom.
-  // Canvas fillText uses y as the baseline; without this offset the text baseline lands
-  // exactly on the glyph baseline and they visually overlap.
-  const infoOriginY = Math.floor(profile.margin_px[1] + yOffset + glyphAreaHeight + 14);
-
-  return { x: infoOriginX, y: infoOriginY, lineHeight: 12 };
 }

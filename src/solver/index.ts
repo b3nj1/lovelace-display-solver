@@ -15,7 +15,7 @@ import type {
   ZonePosition,
 } from './types';
 import { evaluateEntity, applyFocusMode } from './rules';
-import { selectLayout, computeGlyphCoordinates, computeInfoCoordinates, computeBurnInOffsets } from './layout';
+import { selectLayout, computeGlyphCoordinates, computeBurnInOffsets } from './layout';
 import { resolveColor } from '../utils/color';
 
 // ---- Helpers ----------------------------------------------------------------
@@ -379,19 +379,28 @@ export function solve(
     codepoint: codepointMap.get(pageSlice[i].glyphName) ?? '',
   }));
 
-  // Stage 9: Info lines
-  const infoEntries = focusFiltered.filter(e => e.showInfo);
-  const infoCoords = computeInfoCoordinates(profile, layout, totalVisibleIcons, now);
-  const info: InfoEntry[] = infoEntries.map((entry, i) => {
+  // Stage 9: Info lines — each label is paired with its own icon.
+  // Text baseline is placed INFO_FONT_PX + INFO_GAP_PX below the icon's visual
+  // bottom (which canvas drawGlyphs puts at glyph.y + glyph.sizePx).
+  // For multi-row grids the cell height does not include label space, so labels
+  // of row N may overlap row N+1 icons when info is enabled — acceptable for the
+  // common 1–2 entity case; a future cellHeight-with-label change can fix that.
+  const INFO_FONT_PX = 12;
+  const INFO_GAP_PX = 2;
+  const info: InfoEntry[] = [];
+  for (let i = 0; i < pageSlice.length; i++) {
+    const entry = pageSlice[i];
+    if (!entry.showInfo) continue;
+    const glyph = glyphs[i];
     const text = renderInfoLine(entry.entityConfig, states);
     const { r, g, b } = resolveColor(entry.color);
-    return {
+    info.push({
       text,
-      x: infoCoords.x,
-      y: infoCoords.y + i * infoCoords.lineHeight,
+      x: glyph.x,
+      y: glyph.y + glyph.sizePx + INFO_FONT_PX + INFO_GAP_PX,
       r, g, b,
-    };
-  });
+    });
+  }
 
   // Stage 10: Zone indicators
   const { xOffset, yOffset } = computeBurnInOffsets(profile, date);

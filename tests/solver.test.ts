@@ -1023,3 +1023,68 @@ describe('Bug regression — idle glyph emitted when all layouts have icon.min =
     expect(result.glyphs[0].sizePx).toBe(48); // largest size in makeProfile
   });
 });
+
+// ---------------------------------------------------------------------------
+// 22. Per-glyph info placement: info.y == glyph.y + glyph.sizePx + 14
+//
+// Info lines are no longer placed as a block below the entire icon grid.
+// Each info entry must be positioned directly below its own glyph so that
+// icon and label appear paired in the rendered output.
+// ---------------------------------------------------------------------------
+
+describe('22 — Per-glyph info placement: info.y is relative to its own glyph', () => {
+  test('single entity: info.x == glyph.x and info.y == glyph.y + sizePx + 14', () => {
+    const config: EntityConfig = {
+      id: 'co2',
+      entity_id: 'sensor.co2',
+      glyph: 'co2',
+      label: 'CO2',
+      rules: [{ when: { state: '1500' }, then: { action: 'show', tier: 'info', show_info: true } }],
+    };
+    const states: Record<string, StateObject> = {
+      'sensor.co2': { state: '1500', attributes: {} },
+    };
+    // makeProfile: medium size = 24px, margin=[4,4], cols=2
+    // glyph at col=0, row=0 → x=4, y=4, sizePx=24
+    // expected info.y = 4 + 24 + 14 = 42
+    const result = solve(
+      [config], states, DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
+      makeProfile(), stubResolver, 0, FIXED_NOW,
+    );
+
+    expect(result.glyphs).toHaveLength(1);
+    expect(result.info).toHaveLength(1);
+    expect(result.info[0].x).toBe(result.glyphs[0].x);
+    expect(result.info[0].y).toBe(result.glyphs[0].y + result.glyphs[0].sizePx + 14);
+  });
+
+  test('two entities: each info entry paired with its own glyph x', () => {
+    const makeInfoConfig = (id: string, entityId: string): EntityConfig => ({
+      id,
+      entity_id: entityId,
+      glyph: `${id}-icon`,
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'info', show_info: true } }],
+    });
+    const states: Record<string, StateObject> = {
+      'sensor.a': { state: 'on', attributes: {} },
+      'sensor.b': { state: 'on', attributes: {} },
+    };
+    const result = solve(
+      [makeInfoConfig('a', 'sensor.a'), makeInfoConfig('b', 'sensor.b')],
+      states,
+      DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
+      makeProfile(), stubResolver, 0, FIXED_NOW,
+    );
+
+    expect(result.glyphs).toHaveLength(2);
+    expect(result.info).toHaveLength(2);
+    // Each info entry must align horizontally with its glyph
+    expect(result.info[0].x).toBe(result.glyphs[0].x);
+    expect(result.info[1].x).toBe(result.glyphs[1].x);
+    // The two icons are in different columns (cols=2), so their x values differ
+    expect(result.glyphs[0].x).not.toBe(result.glyphs[1].x);
+    // Info y must be below each glyph independently
+    expect(result.info[0].y).toBe(result.glyphs[0].y + result.glyphs[0].sizePx + 14);
+    expect(result.info[1].y).toBe(result.glyphs[1].y + result.glyphs[1].sizePx + 14);
+  });
+});

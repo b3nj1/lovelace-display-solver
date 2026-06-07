@@ -102,6 +102,21 @@ describe('resolveGlyph', () => {
     expect(result).not.toBe(MDI_FALLBACK);
   });
 
+  // Parametric: every key in MDI_TO_MSS must resolve without returning MDI_FALLBACK.
+  // If you add a mapping whose MSS target has no codepoint, resolveGlyph will warn and
+  // fallback — this test catches that before it ships.
+  test('every MDI_TO_MSS key resolves to a non-fallback value in resolveGlyphForCanvas', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const mdiName of Object.keys(MDI_TO_MSS)) {
+        const result = resolveGlyphForCanvas(mdiName);
+        expect(result, `resolveGlyphForCanvas('${mdiName}') must not return MDI_FALLBACK`).not.toBe(MDI_FALLBACK);
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   test('all font_glyphs example names are present in MSS_CODEPOINTS', () => {
     const fontGlyphs = [
       'garage', 'door_open', 'lock', 'security', 'co2', 'air', 'factory',

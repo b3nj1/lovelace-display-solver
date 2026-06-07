@@ -30,6 +30,9 @@ export class DisplaySolverCard extends LitElement {
     }
     this._config = structuredClone(config as CardConfig);
     this._errors = [];
+    if (this._hass) {
+      this._runSolver();
+    }
   }
 
   set hass(hass: HomeAssistant) {

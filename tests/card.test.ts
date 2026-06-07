@@ -109,4 +109,33 @@ describe('DisplaySolverCard', () => {
     const errors = validateCardConfig(stub);
     expect(errors).toHaveLength(0);
   });
+
+  // Bug regression: setConfig must call _runSolver when hass is already set.
+  // Before this fix, config changes (e.g. from the editor) only took effect on the
+  // next entity state update, so viewing-distance changes appeared to have no effect.
+  it('setConfig re-runs solver immediately when hass is already set', () => {
+    const card = new DisplaySolverCard();
+    card.setConfig(validConfig);
+    card.hass = {
+      states: { 'binary_sensor.test': { state: 'off', attributes: {} } },
+      callService: vi.fn().mockResolvedValue(undefined),
+      formatEntityState: () => '',
+    };
+
+    const spy = vi.spyOn(card as any, '_runSolver');
+    const updatedConfig = JSON.parse(JSON.stringify(validConfig));
+    updatedConfig.display_profiles[0].viewing_distance = 'far';
+    card.setConfig(updatedConfig);
+
+    expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
+  });
+
+  it('setConfig does NOT call _runSolver when hass is not yet set', () => {
+    const card = new DisplaySolverCard();
+    const spy = vi.spyOn(card as any, '_runSolver');
+    card.setConfig(validConfig);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
 });

@@ -48,18 +48,19 @@ export class DisplaySolverCardEditor extends LitElement {
             this._dispatch({ ...this._config!, tiers: val.split(',').map(s => s.trim()).filter(Boolean) });
           }}
         ></ha-textfield>
-        <ha-select
-          label="When entity unavailable"
-          .value=${this._config?.defaults?.unavailable_action ?? 'hide'}
-          @selected=${(e: CustomEvent) => {
-            const value = (e.target as HTMLElement & { value: string }).value as 'hide' | 'show';
-            if (!value || value === (this._config?.defaults?.unavailable_action ?? 'hide')) return;
-            this._dispatch({ ...this._config!, defaults: { ...this._config!.defaults, unavailable_action: value } });
-          }}
-        >
-          <mwc-list-item value="hide">Hide (recommended)</mwc-list-item>
-          <mwc-list-item value="show">Show (use with a specific unavailable rule)</mwc-list-item>
-        </ha-select>
+        <label class="select-row">
+          <span class="select-label">When entity unavailable</span>
+          <select
+            .value=${this._config?.defaults?.unavailable_action ?? 'hide'}
+            @change=${(e: Event) => {
+              const value = (e.target as HTMLSelectElement).value as 'hide' | 'show';
+              this._dispatch({ ...this._config!, defaults: { ...this._config!.defaults, unavailable_action: value } });
+            }}
+          >
+            <option value="hide">Hide (recommended)</option>
+            <option value="show">Show (use with a specific unavailable rule)</option>
+          </select>
+        </label>
         <label class="checkbox-row">
           <ha-checkbox
             .checked=${this._config?.defaults?.show_info ?? false}
@@ -117,7 +118,8 @@ export class DisplaySolverCardEditor extends LitElement {
           @change=${(e: Event) => this._updateEntity(i, { ...ent, glyph: (e.target as HTMLInputElement).value || undefined })}
         ></ha-textfield>
         <p class="field-hint">
-          Use a <a href="https://fonts.google.com/icons?icon.style=Sharp" target="_blank" rel="noopener">Material Symbols Sharp</a> name (e.g. <code>garage</code>) or an MDI name (e.g. <code>mdi:garage</code>).
+          Use a <a href="https://fonts.google.com/icons?icon.style=Sharp" target="_blank" rel="noopener">Material Symbols Sharp</a> name (e.g. <code>garage</code>, <code>door_open</code>, <code>lock</code>) — these always work.
+          MDI names (e.g. <code>mdi:garage</code>) only work for icons in the built-in mapping; if one shows as <code>?</code>, use the MSS name directly.
         </p>
         <ha-textfield
           label="Label (optional display name)"
@@ -154,35 +156,37 @@ export class DisplaySolverCardEditor extends LitElement {
                 this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
               }}
             ></ha-textfield>
-            <ha-select
-              label="Action"
-              .value=${rule.then.action}
-              @selected=${(e: CustomEvent) => {
-                const value = (e.target as HTMLElement & { value: string }).value as 'show' | 'hide' | 'indicator';
-                if (!value || value === rule.then.action) return;
-                const updated: Rule = { ...rule, then: { ...rule.then, action: value } };
-                this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
-              }}
-            >
-              <mwc-list-item value="show">Show</mwc-list-item>
-              <mwc-list-item value="hide">Hide</mwc-list-item>
-              <mwc-list-item value="indicator">Indicator only</mwc-list-item>
-            </ha-select>
-            <ha-select
-              label="Tier"
-              .value=${rule.then.tier ?? ''}
-              @selected=${(e: CustomEvent) => {
-                const value = (e.target as HTMLElement & { value: string }).value;
-                if (value === (rule.then.tier ?? '')) return;
-                const updated: Rule = { ...rule, then: { ...rule.then, tier: value || undefined } };
-                this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
-              }}
-            >
-              ${tiers.length === 0
-                ? html`<mwc-list-item value="" disabled>Define tiers above first</mwc-list-item>`
-                : tiers.map(t => html`<mwc-list-item value=${t}>${t}</mwc-list-item>`)
-              }
-            </ha-select>
+            <label class="select-row">
+              <span class="select-label">Action</span>
+              <select
+                .value=${rule.then.action}
+                @change=${(e: Event) => {
+                  const value = (e.target as HTMLSelectElement).value as 'show' | 'hide' | 'indicator';
+                  const updated: Rule = { ...rule, then: { ...rule.then, action: value } };
+                  this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
+                }}
+              >
+                <option value="show">Show</option>
+                <option value="hide">Hide</option>
+                <option value="indicator">Indicator only</option>
+              </select>
+            </label>
+            <label class="select-row">
+              <span class="select-label">Tier</span>
+              <select
+                .value=${rule.then.tier ?? ''}
+                @change=${(e: Event) => {
+                  const value = (e.target as HTMLSelectElement).value;
+                  const updated: Rule = { ...rule, then: { ...rule.then, tier: value || undefined } };
+                  this._updateEntityRules(entityIndex, rules.map((r, j) => j === ri ? updated : r));
+                }}
+              >
+                ${tiers.length === 0
+                  ? html`<option value="" disabled>Define tiers above first</option>`
+                  : tiers.map(t => html`<option value=${t}>${t}</option>`)
+                }
+              </select>
+            </label>
             ${tiers.length === 0 ? html`<p class="field-hint">Add alert levels in the "Alert Levels &amp; Settings" section above first.</p>` : ''}
             <ha-textfield
               label="Color (name or hex)"
@@ -272,18 +276,19 @@ export class DisplaySolverCardEditor extends LitElement {
           .value=${p.id}
           @change=${(e: Event) => this._updateProfile(i, { ...p, id: (e.target as HTMLInputElement).value })}
         ></ha-textfield>
-        <ha-select
-          label="Output type"
-          .value=${p.type}
-          @selected=${(e: CustomEvent) => {
-            const value = (e.target as HTMLElement & { value: string }).value as DisplayProfile['type'];
-            if (!value || value === p.type) return;
-            this._updateProfile(i, { ...p, type: value });
-          }}
-        >
-          <mwc-list-item value="canvas">Canvas (browser preview)</mwc-list-item>
-          <mwc-list-item value="esphome">ESPHome display</mwc-list-item>
-        </ha-select>
+        <label class="select-row">
+          <span class="select-label">Output type</span>
+          <select
+            .value=${p.type}
+            @change=${(e: Event) => {
+              const value = (e.target as HTMLSelectElement).value as DisplayProfile['type'];
+              this._updateProfile(i, { ...p, type: value });
+            }}
+          >
+            <option value="canvas">Canvas (browser preview)</option>
+            <option value="esphome">ESPHome display</option>
+          </select>
+        </label>
         ${p.type === 'esphome' ? html`
           <ha-textfield
             label="Service (esphome.device_set_display_glyphs)"
@@ -310,19 +315,21 @@ export class DisplaySolverCardEditor extends LitElement {
             if (!isNaN(h)) this._updateProfile(i, { ...p, screen_px: [p.screen_px[0], h] });
           }}
         ></ha-textfield>
-        <ha-select
-          label="Viewing distance"
-          .value=${p.viewing_distance}
-          @selected=${(e: CustomEvent) => {
-            const value = (e.target as HTMLElement & { value: string }).value as DisplayProfile['viewing_distance'];
-            if (!value || value === p.viewing_distance) return;
-            this._updateProfile(i, { ...p, viewing_distance: value });
-          }}
-        >
-          <mwc-list-item value="close">Close (desk / tablet)</mwc-list-item>
-          <mwc-list-item value="near">Near (across the room)</mwc-list-item>
-          <mwc-list-item value="far">Far (hallway / at a distance)</mwc-list-item>
-        </ha-select>
+        <label class="select-row">
+          <span class="select-label">Viewing distance</span>
+          <select
+            .value=${p.viewing_distance}
+            @change=${(e: Event) => {
+              const value = (e.target as HTMLSelectElement).value as DisplayProfile['viewing_distance'];
+              this._updateProfile(i, { ...p, viewing_distance: value });
+            }}
+          >
+            <option value="close">Close (desk / tablet)</option>
+            <option value="near">Near (across the room)</option>
+            <option value="far">Far (hallway / at a distance)</option>
+          </select>
+          <span class="field-hint">Only affects layout selection when the profile has multiple layouts configured.</span>
+        </label>
         <label class="checkbox-row">
           <ha-checkbox
             .checked=${p.burn_in_drift}
@@ -388,9 +395,22 @@ export class DisplaySolverCardEditor extends LitElement {
     .toggle-btn { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); padding: 4px 10px; border-radius: 4px; cursor: pointer; }
     .yaml-note { font-size: 0.85em; color: var(--secondary-text-color); margin: 8px 0 0; }
     .yaml-note a { color: var(--primary-color); }
-    .field-hint { font-size: 0.8em; color: var(--secondary-text-color); margin: 2px 0 8px; }
+    .field-hint { font-size: 0.8em; color: var(--secondary-text-color); margin: 2px 0 4px; }
     .field-hint a { color: var(--primary-color); }
     .field-hint code { background: var(--secondary-background-color, #f5f5f5); padding: 1px 4px; border-radius: 3px; }
+    .select-row { display: flex; flex-direction: column; gap: 4px; }
+    .select-label { font-size: 0.85em; color: var(--secondary-text-color, rgba(0,0,0,0.6)); }
+    select {
+      padding: 8px 10px;
+      border: 1px solid var(--input-idle-line-color, rgba(0,0,0,0.42));
+      border-radius: 4px;
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color, #000);
+      font-family: inherit;
+      font-size: 0.95em;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--primary-color, #03a9f4); }
   `;
 }
 

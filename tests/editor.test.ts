@@ -182,6 +182,40 @@ describe('DisplaySolverCardEditor', () => {
     expect(events[0].detail.config.display_profiles[1].viewing_distance).toBe('near');
   });
 
+  // -------------------------------------------------------------------------
+  // Dropdown event-binding regression: native <select> @change must dispatch.
+  //
+  // The previous implementation used ha-select/@selected which silently broke
+  // in newer HA versions because e.target.value was undefined on that element.
+  // These tests render the component in a real DOM (happy-dom), find the
+  // native <select>, and simulate a @change event — verifying the full
+  // event-binding→dispatch chain, not just the helper methods.
+  // -------------------------------------------------------------------------
+
+  it('unavailable_action <select> dispatches config-changed when value changes', async () => {
+    const editor = new DisplaySolverCardEditor();
+    document.body.appendChild(editor);
+    editor.setConfig(baseConfig as any);
+    await (editor as any).updateComplete;
+
+    const events: CustomEvent[] = [];
+    editor.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const selects = editor.shadowRoot!.querySelectorAll('select');
+    // First select in the tiers section is the unavailable_action dropdown
+    const sel = Array.from(selects).find(s =>
+      s.querySelector('option[value="hide"]') !== null
+    ) as HTMLSelectElement | undefined;
+    expect(sel).toBeDefined();
+    sel!.value = 'show';
+    sel!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(events).toHaveLength(1);
+    expect(events[0].detail.config.defaults?.unavailable_action).toBe('show');
+
+    document.body.removeChild(editor);
+  });
+
   it('_addEntity dispatches config with one more entity', () => {
     const editor = new DisplaySolverCardEditor();
     editor.setConfig(baseConfig as any);

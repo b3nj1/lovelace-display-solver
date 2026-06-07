@@ -53,6 +53,18 @@ describe('DisplaySolverCardEditor', () => {
     expect((capturedEvent as unknown as CustomEvent).composed).toBe(true);
   });
 
+  // Bug regression: _dispatch must update this._config so that subsequent
+  // Lit re-renders (triggered by other @state changes like _expandedEntity) use
+  // the latest config rather than the original value from when setConfig was called.
+  // Without this, opening "Edit rules" after changing a dropdown snaps it back.
+  it('_dispatch updates this._config so re-renders use the latest value', () => {
+    const editor = new DisplaySolverCardEditor();
+    editor.setConfig(baseConfig as any);
+    const newConfig = { ...baseConfig, defaults: { unavailable_action: 'show' as const } };
+    (editor as any)._dispatch(newConfig);
+    expect((editor as any)._config.defaults.unavailable_action).toBe('show');
+  });
+
   it('dispatching updated defaults.unavailable_action fires event with new value', () => {
     const editor = new DisplaySolverCardEditor();
     editor.setConfig(baseConfig as any);

@@ -17,6 +17,7 @@ export class DisplaySolverCardEditor extends LitElement {
   }
 
   private _dispatch(config: CardConfig): void {
+    this._config = config;
     this.dispatchEvent(new CustomEvent('config-changed', {
       detail: { config },
       bubbles: true,

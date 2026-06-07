@@ -240,6 +240,25 @@ export function solve(
   // Stage 3: Focus mode
   const focusFiltered = applyFocusMode(activeEntries, tiers);
 
+  // Early exit: idle — no active entries after focus filtering.
+  // Must happen before selectLayout, which returns null for iconCount=0 and
+  // triggers the config-error path before stage 12 can emit the idle glyph.
+  if (focusFiltered.length === 0) {
+    const { xOffset, yOffset } = computeBurnInOffsets(profile, date);
+    const fallbackSize = Object.keys(profile.glyph_sizes)[0] ?? 'small';
+    return {
+      profile_id: profile.id,
+      glyphs: [computeIdleGlyph(profile, glyphResolver, xOffset, yOffset)],
+      info: [],
+      zones: [],
+      severity_bar: computeSeverityBar(profile, [], tiers, now),
+      layout: { icon: { min: 0, max: 1, size: fallbackSize, cols: 1 }, info: { min: 0, max: 0 } },
+      error: false,
+      warnings,
+      page_count: 1,
+    };
+  }
+
   // Stage 4: Glyph name -> codepoint
   const codepointMap = new Map<string, string>();
   for (const entry of focusFiltered) {
@@ -381,14 +400,9 @@ export function solve(
   // Stage 11: Severity bar
   const severity_bar = computeSeverityBar(profile, focusFiltered, tiers, now);
 
-  // Stage 12: Idle glyph
-  const finalGlyphs = focusFiltered.length === 0
-    ? [computeIdleGlyph(profile, glyphResolver, xOffset, yOffset)]
-    : glyphs;
-
   return {
     profile_id: profile.id,
-    glyphs: finalGlyphs,
+    glyphs,
     info,
     zones,
     severity_bar,

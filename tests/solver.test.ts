@@ -963,3 +963,63 @@ describe('21 — error: true only when no layout matches, not when icons fit', (
     expect(result.error).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Bug regression: idle glyph with layouts that have icon.min = 1
+//
+// Before the fix, when all layouts had icon.min >= 1 (the typical real-world
+// case), selectLayout returned null for iconCount=0.  The null branch triggered
+// the config-error early-return with empty glyphs — the idle glyph check at
+// stage 12 was never reached.
+//
+// The existing describe '2' test masked this because its profile uses
+// icon.min = 0, so selectLayout still succeeded.  This test uses icon.min = 1.
+// ---------------------------------------------------------------------------
+
+describe('Bug regression — idle glyph emitted when all layouts have icon.min = 1', () => {
+  test('error is false and glyphs contains the idle glyph', () => {
+    const config: EntityConfig = {
+      id: 'sensor1',
+      entity_id: 'sensor.test',
+      rules: [{ when: { state: 'active' }, then: { action: 'show', tier: 'info' } }],
+    };
+    // State doesn't match the 'active' rule → focusFiltered is empty
+    const states = makeStates('sensor.test', 'inactive');
+    const profile = makeProfile({
+      layouts: [{ icon: { min: 1, max: 6, size: 'medium', cols: 2 }, info: { min: 0, max: 3 } }],
+    });
+
+    const result = solve(
+      [config], states, DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
+      profile, stubResolver, 0, FIXED_NOW,
+    );
+
+    expect(result.error).toBe(false);
+    expect(result.glyphs).toHaveLength(1);
+    // idle_glyph is 'check_circle' from makeProfile; stubResolver prefixes 'CP:'
+    expect(result.glyphs[0].codepoint).toBe('CP:check_circle');
+  });
+
+  test('idle glyph is centered on screen', () => {
+    const config: EntityConfig = {
+      id: 's',
+      entity_id: 'sensor.test',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'info' } }],
+    };
+    const states = makeStates('sensor.test', 'off');
+    // 128×128 screen, largest glyph size = 48px (large) → center = (128-48)/2 = 40
+    const profile = makeProfile({
+      layouts: [{ icon: { min: 1, max: 4, size: 'medium', cols: 2 }, info: { min: 0, max: 2 } }],
+    });
+
+    const result = solve(
+      [config], states, DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
+      profile, stubResolver, 0, FIXED_NOW,
+    );
+
+    expect(result.glyphs).toHaveLength(1);
+    expect(result.glyphs[0].x).toBe(40);
+    expect(result.glyphs[0].y).toBe(40);
+    expect(result.glyphs[0].sizePx).toBe(48); // largest size in makeProfile
+  });
+});

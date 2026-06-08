@@ -55,11 +55,14 @@ const baseLayout: LayoutEntry = {
 // ---------------------------------------------------------------------------
 
 describe('1 — expandViewingDistance: far', () => {
-  test('"far" → max_info_rows: 0, prefer_fewer_icons: true', () => {
+  test('"far" → max_info_rows: 4, prefer_fewer_icons: true, size_scale: 2.0', () => {
     const profile = makeProfile('far');
     const result = expandViewingDistance(profile);
-    expect(result.max_info_rows).toBe(0);
+    // far shows info (user expects text at all distances) and doubles the glyph
+    // size on single-size profiles so the zoom effect is always visible.
+    expect(result.max_info_rows).toBe(4);
     expect(result.prefer_fewer_icons).toBe(true);
+    expect(result.size_scale).toBe(2.0);
   });
 });
 
@@ -173,17 +176,35 @@ describe('7 — selectLayout: no matching layout → null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. selectLayout: far distance, layout with info.min > 0 → skipped
+// 8. selectLayout: far distance — info-requiring layouts are NOT skipped
+//
+// Previously far had max_info_rows=0 which filtered layouts with info.min>0.
+// The user expects text (info) to appear at all viewing distances; far means
+// "bigger glyphs", not "no text".  max_info_rows is now 4 for all distances.
+// The only filter that drops an info-requiring layout is hasInfo=false.
 // ---------------------------------------------------------------------------
 
-describe('8 — selectLayout: far distance, info.min > 0 layout skipped', () => {
-  test('layout requiring info skipped even if icon count matches', () => {
+describe('8 — selectLayout: far distance, info.min > 0 layout selected when hasInfo=true', () => {
+  test('far: layout with info.min=1 IS selected when hasInfo=true (no info suppression)', () => {
     const withInfo: LayoutEntry = {
       icon: { min: 1, max: 8, size: 'medium', cols: 2 },
       info: { min: 1, max: 2 },
     };
     const profile = makeProfile('far', { layouts: [withInfo] });
     const result = selectLayout(profile, 3, true);
+    // far no longer suppresses info — layout is found
+    expect(result).not.toBeNull();
+    expect(result).toEqual(withInfo);
+  });
+
+  test('far: layout with info.min=1 is still skipped when hasInfo=false', () => {
+    const withInfo: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 2 },
+      info: { min: 1, max: 2 },
+    };
+    const profile = makeProfile('far', { layouts: [withInfo] });
+    const result = selectLayout(profile, 3, false);
+    // hasInfo=false → layout requires info that isn't present → null
     expect(result).toBeNull();
   });
 });
@@ -538,5 +559,70 @@ describe('16 — computeGlyphCoordinates: Math.floor applied to coordinates', ()
       expect(Number.isInteger(g.x)).toBe(true);
       expect(Number.isInteger(g.y)).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 17. computeGlyphCoordinates: single-size profile applies size_scale zoom
+//
+// When every layout in the profile uses the same icon size, layout selection
+// cannot differentiate between viewing distances.  computeGlyphCoordinates
+// applies the preset's size_scale multiplier so far/near/close produce a
+// visible zoom effect even for single-size profiles.
+//
+// Scales: far=2.0, near=1.0, close=0.5.
+// Multi-size profiles (distinctSizes > 1) get scale=1.0 (no double-scaling).
+// ---------------------------------------------------------------------------
+
+describe('17 — computeGlyphCoordinates: single-size profile applies size_scale', () => {
+  const singleSizeProfile = (distance: 'far' | 'near' | 'close'): DisplayProfile =>
+    makeProfile(distance, {
+      margin_px: [0, 0],
+      glyph_sizes: { only: { px: 24, fits_cols: 4 } },
+      layouts: [{ icon: { min: 1, max: 16, size: 'only', cols: 4 }, info: { min: 0, max: 0 } }],
+    });
+
+  const layout: LayoutEntry = {
+    icon: { min: 1, max: 16, size: 'only', cols: 4 },
+    info: { min: 0, max: 0 },
+  };
+
+  test('single-size profile, far: sizePx = declared * 2.0 = 48', () => {
+    const result = computeGlyphCoordinates(singleSizeProfile('far'), layout, [makeEntry()]);
+    expect(result[0].sizePx).toBe(Math.round(24 * 2.0)); // 48
+  });
+
+  test('single-size profile, near: sizePx = declared * 1.0 = 24 (no scaling)', () => {
+    const result = computeGlyphCoordinates(singleSizeProfile('near'), layout, [makeEntry()]);
+    expect(result[0].sizePx).toBe(24);
+  });
+
+  test('single-size profile, close: sizePx = declared * 0.5 = 12', () => {
+    const result = computeGlyphCoordinates(singleSizeProfile('close'), layout, [makeEntry()]);
+    expect(result[0].sizePx).toBe(Math.round(24 * 0.5)); // 12
+  });
+
+  test('single-size profile: far sizePx > near sizePx > close sizePx', () => {
+    const far   = computeGlyphCoordinates(singleSizeProfile('far'),   layout, [makeEntry()])[0].sizePx;
+    const near  = computeGlyphCoordinates(singleSizeProfile('near'),  layout, [makeEntry()])[0].sizePx;
+    const close = computeGlyphCoordinates(singleSizeProfile('close'), layout, [makeEntry()])[0].sizePx;
+    expect(far).toBeGreaterThan(near);
+    expect(near).toBeGreaterThan(close);
+  });
+
+  test('multi-size profile: scale is 1.0 regardless of viewing distance (no double-scaling)', () => {
+    // profile has large=48 and small=24 — two distinct sizes → scale=1.0
+    const multiSizeLayout: LayoutEntry = { icon: { min: 1, max: 4, size: 'large', cols: 2 }, info: { min: 0, max: 0 } };
+    const profile = makeProfile('far', {
+      margin_px: [0, 0],
+      glyph_sizes: { large: { px: 48, fits_cols: 2 }, small: { px: 24, fits_cols: 4 } },
+      layouts: [
+        multiSizeLayout,
+        { icon: { min: 1, max: 16, size: 'small', cols: 4 }, info: { min: 0, max: 0 } },
+      ],
+    });
+    const result = computeGlyphCoordinates(profile, multiSizeLayout, [makeEntry()]);
+    // No scaling: sizePx == declared large=48, not 48*2=96
+    expect(result[0].sizePx).toBe(48);
   });
 });

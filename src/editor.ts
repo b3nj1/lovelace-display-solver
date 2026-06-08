@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, type PropertyValues } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { CardConfig, EntityConfig, DisplayProfile, Rule } from './solver/types';
 
@@ -12,26 +12,31 @@ export class DisplaySolverCardEditor extends LitElement {
     this._config = config;
   }
 
-  // In Safari, HA may assign `hass` as a plain own-property on the DOM element
-  // before the custom element is upgraded. When that happens the reactive setter
-  // below is never called, so _hass stays undefined and the entity picker never
-  // renders. connectedCallback runs after upgrade, so we check for and promote
-  // any pre-upgrade plain-property value here.
-  connectedCallback(): void {
-    super.connectedCallback();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const preUpgrade = (this as any)['hass'];
-    if (preUpgrade && !this._hass) {
-      this._hass = preUpgrade as Record<string, unknown>;
-    }
-  }
-
   get hass(): Record<string, unknown> | undefined {
     return this._hass;
   }
 
   set hass(hass: Record<string, unknown>) {
     this._hass = hass;
+  }
+
+  // Safari pre-upgrade guard: HA may assign `hass` as a plain own-property on
+  // the DOM node before the custom element definition is registered. That plain
+  // assignment lands on the instance directly and shadows the prototype setter,
+  // so the setter never fires, _hass stays undefined, and the entity picker
+  // never renders. firstUpdated runs after Lit's first render cycle, by which
+  // point the element is fully upgraded. We read the own-property via
+  // Object.getOwnPropertyDescriptor (bypasses the prototype getter so we see
+  // any shadowing value), promote it through the reactive setter, then delete
+  // the own-property so future assignments go through the setter normally.
+  protected firstUpdated(_changedProperties: PropertyValues): void {
+    super.firstUpdated(_changedProperties);
+    const desc = Object.getOwnPropertyDescriptor(this, 'hass');
+    if (desc && desc.value !== undefined && !this._hass) {
+      // Plain own-property found — promote it and remove the shadow.
+      this.hass = desc.value as Record<string, unknown>;
+      delete (this as Record<string, unknown>)['hass'];
+    }
   }
 
   private _dispatch(config: CardConfig): void {
@@ -388,8 +393,18 @@ export class DisplaySolverCardEditor extends LitElement {
       burn_in_drift: false,
       viewing_distance: 'near',
       idle_glyph: 'check_circle',
-      glyph_sizes: { small: { px: 24, fits_cols: 4 } },
-      layouts: [{ icon: { min: 1, max: 16, size: 'small', cols: 4 }, info: { min: 0, max: 3 } }],
+      // Three distinct sizes let far/near/close select visibly different layouts.
+      // Without multiple sizes, viewing_distance applies a 2x/1x/0.5x zoom fallback.
+      glyph_sizes: {
+        large:  { px: 96, fits_cols: 2 },
+        medium: { px: 48, fits_cols: 3 },
+        small:  { px: 24, fits_cols: 4 },
+      },
+      layouts: [
+        { icon: { min: 1, max: 4,  size: 'large',  cols: 2 }, info: { min: 0, max: 0 } },
+        { icon: { min: 1, max: 9,  size: 'medium', cols: 3 }, info: { min: 0, max: 2 } },
+        { icon: { min: 1, max: 16, size: 'small',  cols: 4 }, info: { min: 0, max: 3 } },
+      ],
     };
     this._dispatch({ ...this._config, display_profiles: [...profiles, newProfile] });
   }

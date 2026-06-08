@@ -12,8 +12,7 @@
 #   index 2 (font3) = small info text font (~14-16px)
 # Note: until the first set_display_glyphs service call arrives from Home Assistant, the display
 # will be blank. This is expected — globals are initialised empty at boot.
-# Note: the service lambda uses std::stringstream and std::getline. If your ESPHome version
-# does not include <sstream> automatically, add `#include <sstream>` to your ESPHome globals: block.
+# Note: the service lambda uses only std::string::find/substr for CSV parsing — no <sstream> needed.
 
 # ---------------------------------------------------------------------------
 # API service declaration
@@ -87,218 +86,54 @@ api:
         # lambda can read them on each render cycle.
         # Parse each comma-separated string into its corresponding vector global.
         - lambda: |-
-            // parse comma-separated int string into vector<int>
-            {
-              id(g_x).clear();
-              std::stringstream ss(x);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_x).push_back(std::stoi(tok));
+            // Split a string by delimiter and push parsed ints into a vector global.
+            // Uses only std::string::find/substr — no <sstream> needed.
+            auto split_int = [](const std::string &s, char delim, std::vector<int> &out) {
+              out.clear();
+              size_t p = 0, q;
+              while ((q = s.find(delim, p)) != std::string::npos) {
+                if (q > p) out.push_back(std::stoi(s.substr(p, q - p)));
+                p = q + 1;
               }
-            }
-            {
-              id(g_y).clear();
-              std::stringstream ss(y);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_y).push_back(std::stoi(tok));
+              if (p < s.size()) out.push_back(std::stoi(s.substr(p)));
+            };
+            auto split_str = [](const std::string &s, char delim, std::vector<std::string> &out) {
+              out.clear();
+              size_t p = 0, q;
+              while ((q = s.find(delim, p)) != std::string::npos) {
+                if (q > p) out.push_back(s.substr(p, q - p));
+                p = q + 1;
               }
-            }
-            {
-              id(g_r).clear();
-              std::stringstream ss(r);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_r).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_g).clear();
-              std::stringstream ss(g);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_g).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_b).clear();
-              std::stringstream ss(b);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_b).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_glyph).clear();
-              std::stringstream ss(glyph);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_glyph).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_glyph).clear();
-              std::stringstream ss(info_glyph);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_glyph).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_glyph_y).clear();
-              std::stringstream ss(info_glyph_y);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_glyph_y).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_glyph_x).clear();
-              std::stringstream ss(info_glyph_x);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_glyph_x).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_glyph_r).clear();
-              std::stringstream ss(info_glyph_r);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_glyph_r).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_glyph_g).clear();
-              std::stringstream ss(info_glyph_g);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_glyph_g).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_glyph_b).clear();
-              std::stringstream ss(info_glyph_b);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_glyph_b).push_back(std::stoi(tok));
-              }
-            }
+              if (p < s.size()) out.push_back(s.substr(p));
+            };
 
+            split_int(x,              ',', id(g_x));
+            split_int(y,              ',', id(g_y));
+            split_int(r,              ',', id(g_r));
+            split_int(g,              ',', id(g_g));
+            split_int(b,              ',', id(g_b));
+            split_int(glyph,          ',', id(g_glyph));
+            split_int(info_glyph,     ',', id(g_info_glyph));
+            split_int(info_glyph_y,   ',', id(g_info_glyph_y));
+            split_int(info_glyph_x,   ',', id(g_info_glyph_x));
+            split_int(info_glyph_r,   ',', id(g_info_glyph_r));
+            split_int(info_glyph_g,   ',', id(g_info_glyph_g));
+            split_int(info_glyph_b,   ',', id(g_info_glyph_b));
             // info_text uses '|' as delimiter to avoid conflicts with commas in text values
-            {
-              id(g_info_text).clear();
-              std::stringstream ss(info_text);
-              std::string tok;
-              while (std::getline(ss, tok, '|')) {
-                if (!tok.empty()) id(g_info_text).push_back(tok);
-              }
-            }
-            {
-              id(g_info_text_y).clear();
-              std::stringstream ss(info_text_y);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_text_y).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_text_x).clear();
-              std::stringstream ss(info_text_x);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_text_x).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_text_r).clear();
-              std::stringstream ss(info_text_r);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_text_r).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_text_g).clear();
-              std::stringstream ss(info_text_g);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_text_g).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_info_text_b).clear();
-              std::stringstream ss(info_text_b);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_info_text_b).push_back(std::stoi(tok));
-              }
-            }
-
-            {
-              id(g_draw_shape).clear();
-              std::stringstream ss(draw_shape);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_x).clear();
-              std::stringstream ss(draw_shape_x);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_x).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_y).clear();
-              std::stringstream ss(draw_shape_y);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_y).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_d2).clear();
-              std::stringstream ss(draw_shape_d2);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_d2).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_d3).clear();
-              std::stringstream ss(draw_shape_d3);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_d3).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_r).clear();
-              std::stringstream ss(draw_shape_r);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_r).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_g).clear();
-              std::stringstream ss(draw_shape_g);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_g).push_back(std::stoi(tok));
-              }
-            }
-            {
-              id(g_draw_shape_b).clear();
-              std::stringstream ss(draw_shape_b);
-              std::string tok;
-              while (std::getline(ss, tok, ',')) {
-                if (!tok.empty()) id(g_draw_shape_b).push_back(std::stoi(tok));
-              }
-            }
+            split_str(info_text,      '|', id(g_info_text));
+            split_int(info_text_y,    ',', id(g_info_text_y));
+            split_int(info_text_x,    ',', id(g_info_text_x));
+            split_int(info_text_r,    ',', id(g_info_text_r));
+            split_int(info_text_g,    ',', id(g_info_text_g));
+            split_int(info_text_b,    ',', id(g_info_text_b));
+            split_int(draw_shape,     ',', id(g_draw_shape));
+            split_int(draw_shape_x,   ',', id(g_draw_shape_x));
+            split_int(draw_shape_y,   ',', id(g_draw_shape_y));
+            split_int(draw_shape_d2,  ',', id(g_draw_shape_d2));
+            split_int(draw_shape_d3,  ',', id(g_draw_shape_d3));
+            split_int(draw_shape_r,   ',', id(g_draw_shape_r));
+            split_int(draw_shape_g,   ',', id(g_draw_shape_g));
+            split_int(draw_shape_b,   ',', id(g_draw_shape_b));
 
             // scalars — direct assignment
             id(g_glyph_font) = glyph_font;

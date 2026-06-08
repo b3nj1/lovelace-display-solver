@@ -179,6 +179,10 @@ sensor:
 
 #### DISPLAY ####
 
+spi:
+     clk_pin: GPIO27 # SCK of display
+     mosi_pin: GPIO25 # SDA of display
+
 globals:
 - id: g_dg_glyph
   type: 'std::vector<std::string>'
@@ -541,9 +545,6 @@ font:
       - "\U0000eb47" # refrigerator
       - "\U0000e209" # EV
 
-spi:
-     clk_pin: GPIO27 # SCK of display
-     mosi_pin: GPIO25 # SDA of display
 
 display:
   - platform: ssd1351_spi # VCC 3 or 5: 3V

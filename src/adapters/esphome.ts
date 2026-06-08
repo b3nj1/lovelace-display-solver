@@ -1,38 +1,38 @@
 import type { SolverResult, DisplayProfile } from '../solver/types';
 
 export interface ESPhomePayload {
-  // glyph grid
-  x: number[];
-  y: number[];
-  r: number[];
-  g: number[];
-  b: number[];
-  glyph: string[];
+  // glyph grid — all arrays serialized as comma-separated strings per ESPHome service schema
+  x: string;
+  y: string;
+  r: string;
+  g: string;
+  b: string;
+  glyph: string;              // comma-separated decimal codepoint integers
   glyph_font: number;         // single int: font index for selected layout size
   // info row glyphs
-  info_glyph: number[];
-  info_glyph_y: number[];
-  info_glyph_x: number[];
-  info_glyph_r: number[];
-  info_glyph_g: number[];
-  info_glyph_b: number[];
+  info_glyph: string;         // comma-separated decimal codepoint integers (0 = NUL/no glyph)
+  info_glyph_y: string;
+  info_glyph_x: string;
+  info_glyph_r: string;
+  info_glyph_g: string;
+  info_glyph_b: string;
   // info row text
-  info_text: string[];
-  info_text_y: number[];
-  info_text_x: number[];
-  info_text_r: number[];
-  info_text_g: number[];
-  info_text_b: number[];
+  info_text: string;          // pipe-separated rendered strings (pipe avoids conflicts with commas in values)
+  info_text_y: string;
+  info_text_x: string;
+  info_text_r: string;
+  info_text_g: string;
+  info_text_b: string;
   info_scroll: boolean;
-  // shapes (zones + severity bar)
-  draw_shape: number[];       // shape type integer: 0=filled_rectangle, 1=circle, 2=filled_circle
-  draw_shape_x: number[];
-  draw_shape_y: number[];
-  draw_shape_d2: number[];    // width for rectangle; radius for circle
-  draw_shape_d3: number[];    // height for rectangle; unused for circle
-  draw_shape_r: number[];
-  draw_shape_g: number[];
-  draw_shape_b: number[];
+  // shapes (zones + severity bar) — type codes: 0=filled_rectangle, 1=circle, 2=filled_circle
+  draw_shape: string;
+  draw_shape_x: string;
+  draw_shape_y: string;
+  draw_shape_d2: string;      // width for rectangle; radius for circle
+  draw_shape_d3: string;      // height for rectangle; 0 for circle
+  draw_shape_r: string;
+  draw_shape_g: string;
+  draw_shape_b: string;
   // status
   error: boolean;
 }
@@ -215,35 +215,39 @@ export function packESPhomePayload(
     }
   }
 
+  // Serialize arrays to comma/pipe-separated strings as required by the ESPHome service schema.
+  // glyph codepoints are Unicode chars; convert each to its decimal integer before joining.
+  const glyphInts = glyph.map(ch => ch.codePointAt(0) ?? 0);
+
   return {
-    x,
-    y,
-    r,
-    g,
-    b,
-    glyph,
+    x:             x.join(','),
+    y:             y.join(','),
+    r:             r.join(','),
+    g:             g.join(','),
+    b:             b.join(','),
+    glyph:         glyphInts.join(','),
     glyph_font,
-    info_glyph,
-    info_glyph_y,
-    info_glyph_x,
-    info_glyph_r,
-    info_glyph_g,
-    info_glyph_b,
-    info_text,
-    info_text_y,
-    info_text_x,
-    info_text_r,
-    info_text_g,
-    info_text_b,
+    info_glyph:    info_glyph.join(','),
+    info_glyph_y:  info_glyph_y.join(','),
+    info_glyph_x:  info_glyph_x.join(','),
+    info_glyph_r:  info_glyph_r.join(','),
+    info_glyph_g:  info_glyph_g.join(','),
+    info_glyph_b:  info_glyph_b.join(','),
+    info_text:     info_text.join('|'),
+    info_text_y:   info_text_y.join(','),
+    info_text_x:   info_text_x.join(','),
+    info_text_r:   info_text_r.join(','),
+    info_text_g:   info_text_g.join(','),
+    info_text_b:   info_text_b.join(','),
     info_scroll,
-    draw_shape,
-    draw_shape_x,
-    draw_shape_y,
-    draw_shape_d2,
-    draw_shape_d3,
-    draw_shape_r,
-    draw_shape_g,
-    draw_shape_b,
+    draw_shape:    draw_shape.join(','),
+    draw_shape_x:  draw_shape_x.join(','),
+    draw_shape_y:  draw_shape_y.join(','),
+    draw_shape_d2: draw_shape_d2.join(','),
+    draw_shape_d3: draw_shape_d3.join(','),
+    draw_shape_r:  draw_shape_r.join(','),
+    draw_shape_g:  draw_shape_g.join(','),
+    draw_shape_b:  draw_shape_b.join(','),
     error: result.error,
   };
 }

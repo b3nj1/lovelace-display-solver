@@ -41,6 +41,17 @@ function makeSolverResult(overrides: Partial<SolverResult> = {}): SolverResult {
   };
 }
 
+// Parse a comma-separated string field back to an array for assertion.
+// An empty string returns an empty array.
+function parseInts(s: string): number[] {
+  if (s === '') return [];
+  return s.split(',').map(Number);
+}
+function parseStrs(s: string, delim = ','): string[] {
+  if (s === '') return [];
+  return s.split(delim);
+}
+
 // --- Tests ---
 
 describe('packESPhomePayload', () => {
@@ -48,8 +59,8 @@ describe('packESPhomePayload', () => {
   it('test 1: 2 glyphs, 1 info line, 1 zone — all arrays populated with correct lengths', () => {
     const result = makeSolverResult({
       glyphs: [
-        { codepoint: '', x: 10, y: 20, sizePx: 58, r: 255, g: 0, b: 0 },
-        { codepoint: '', x: 70, y: 20, sizePx: 58, r: 0, g: 255, b: 0 },
+        { codepoint: '', x: 10, y: 20, sizePx: 58, r: 255, g: 0, b: 0 },
+        { codepoint: '', x: 70, y: 20, sizePx: 58, r: 0, g: 255, b: 0 },
       ],
       info: [
         { text: 'CO2: 900ppm', x: 0, y: 180, r: 200, g: 200, b: 200 },
@@ -61,42 +72,42 @@ describe('packESPhomePayload', () => {
 
     const payload = packESPhomePayload(result, baseProfile);
 
-    // Glyph arrays: length 2
-    expect(payload.x).toHaveLength(2);
-    expect(payload.y).toHaveLength(2);
-    expect(payload.r).toHaveLength(2);
-    expect(payload.g).toHaveLength(2);
-    expect(payload.b).toHaveLength(2);
-    expect(payload.glyph).toHaveLength(2);
+    // Glyph arrays: 2 elements each
+    expect(parseInts(payload.x)).toHaveLength(2);
+    expect(parseInts(payload.y)).toHaveLength(2);
+    expect(parseInts(payload.r)).toHaveLength(2);
+    expect(parseInts(payload.g)).toHaveLength(2);
+    expect(parseInts(payload.b)).toHaveLength(2);
+    expect(parseInts(payload.glyph)).toHaveLength(2);
 
-    // Info arrays: length 1
-    expect(payload.info_text).toHaveLength(1);
-    expect(payload.info_text_x).toHaveLength(1);
-    expect(payload.info_text_y).toHaveLength(1);
-    expect(payload.info_text_r).toHaveLength(1);
-    expect(payload.info_text_g).toHaveLength(1);
-    expect(payload.info_text_b).toHaveLength(1);
-    expect(payload.info_glyph).toHaveLength(1);
-    expect(payload.info_glyph_x).toHaveLength(1);
-    expect(payload.info_glyph_y).toHaveLength(1);
-    expect(payload.info_glyph_r).toHaveLength(1);
-    expect(payload.info_glyph_g).toHaveLength(1);
-    expect(payload.info_glyph_b).toHaveLength(1);
+    // Info arrays: 1 element each
+    expect(parseStrs(payload.info_text, '|')).toHaveLength(1);
+    expect(parseInts(payload.info_text_x)).toHaveLength(1);
+    expect(parseInts(payload.info_text_y)).toHaveLength(1);
+    expect(parseInts(payload.info_text_r)).toHaveLength(1);
+    expect(parseInts(payload.info_text_g)).toHaveLength(1);
+    expect(parseInts(payload.info_text_b)).toHaveLength(1);
+    expect(parseInts(payload.info_glyph)).toHaveLength(1);
+    expect(parseInts(payload.info_glyph_x)).toHaveLength(1);
+    expect(parseInts(payload.info_glyph_y)).toHaveLength(1);
+    expect(parseInts(payload.info_glyph_r)).toHaveLength(1);
+    expect(parseInts(payload.info_glyph_g)).toHaveLength(1);
+    expect(parseInts(payload.info_glyph_b)).toHaveLength(1);
 
     // Shape arrays: 1 zone
-    expect(payload.draw_shape).toHaveLength(1);
-    expect(payload.draw_shape_x).toHaveLength(1);
-    expect(payload.draw_shape_y).toHaveLength(1);
-    expect(payload.draw_shape_d2).toHaveLength(1);
-    expect(payload.draw_shape_d3).toHaveLength(1);
-    expect(payload.draw_shape_r).toHaveLength(1);
-    expect(payload.draw_shape_g).toHaveLength(1);
-    expect(payload.draw_shape_b).toHaveLength(1);
+    expect(parseInts(payload.draw_shape)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_x)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_y)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_d2)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_d3)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_r)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_g)).toHaveLength(1);
+    expect(parseInts(payload.draw_shape_b)).toHaveLength(1);
 
     expect(payload.error).toBe(false);
   });
 
-  it('test 2: idle result — all arrays empty, glyph_font = 0, error = false', () => {
+  it('test 2: idle result — all arrays empty strings, glyph_font = 1, error = false', () => {
     const result = makeSolverResult({
       glyphs: [],
       info: [],
@@ -107,20 +118,20 @@ describe('packESPhomePayload', () => {
 
     const payload = packESPhomePayload(result, baseProfile);
 
-    expect(payload.x).toEqual([]);
-    expect(payload.y).toEqual([]);
-    expect(payload.r).toEqual([]);
-    expect(payload.g).toEqual([]);
-    expect(payload.b).toEqual([]);
-    expect(payload.glyph).toEqual([]);
+    expect(payload.x).toBe('');
+    expect(payload.y).toBe('');
+    expect(payload.r).toBe('');
+    expect(payload.g).toBe('');
+    expect(payload.b).toBe('');
+    expect(payload.glyph).toBe('');
     expect(payload.glyph_font).toBe(1); // medium is index 1 (sorted: large=0, medium=1)
-    expect(payload.info_glyph).toEqual([]);
-    expect(payload.info_text).toEqual([]);
-    expect(payload.draw_shape).toEqual([]);
+    expect(payload.info_glyph).toBe('');
+    expect(payload.info_text).toBe('');
+    expect(payload.draw_shape).toBe('');
     expect(payload.error).toBe(false);
   });
 
-  it('test 3: severity bar present — shape arrays length = zones + 1', () => {
+  it('test 3: severity bar present — shape arrays have zones + 1 elements', () => {
     const result = makeSolverResult({
       zones: [
         { zoneId: 'kitchen', x: 5, y: 5, w: 15, h: 15, r: 0, g: 0, b: 255, shape: 'circle' },
@@ -131,20 +142,24 @@ describe('packESPhomePayload', () => {
     const payload = packESPhomePayload(result, baseProfile);
 
     // 1 zone + 1 severity bar = 2 shapes
-    expect(payload.draw_shape).toHaveLength(2);
-    expect(payload.draw_shape_x).toHaveLength(2);
-    expect(payload.draw_shape_y).toHaveLength(2);
-    expect(payload.draw_shape_d2).toHaveLength(2);
-    expect(payload.draw_shape_d3).toHaveLength(2);
-    expect(payload.draw_shape_r).toHaveLength(2);
-    expect(payload.draw_shape_g).toHaveLength(2);
-    expect(payload.draw_shape_b).toHaveLength(2);
+    expect(parseInts(payload.draw_shape)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_x)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_y)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_d2)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_d3)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_r)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_g)).toHaveLength(2);
+    expect(parseInts(payload.draw_shape_b)).toHaveLength(2);
 
     // The last shape must be the severity bar (filled_rectangle = integer code 0)
-    expect(payload.draw_shape[1]).toBe(0);
-    expect(payload.draw_shape_y[1]).toBe(236);
-    expect(payload.draw_shape_d2[1]).toBe(320);
-    expect(payload.draw_shape_d3[1]).toBe(4);
+    const shapes = parseInts(payload.draw_shape);
+    const shapeY = parseInts(payload.draw_shape_y);
+    const shapeD2 = parseInts(payload.draw_shape_d2);
+    const shapeD3 = parseInts(payload.draw_shape_d3);
+    expect(shapes[1]).toBe(0);
+    expect(shapeY[1]).toBe(236);
+    expect(shapeD2[1]).toBe(320);
+    expect(shapeD3[1]).toBe(4);
   });
 
   it('test 4: info_scroll = true when info.length > layout.info.max', () => {
@@ -197,16 +212,12 @@ describe('packESPhomePayload', () => {
     expect(payload.glyph_font).toBe(1);
   });
 
-  it('test 7: array length invariant — output arrays within each group have equal lengths (invariant holds for valid input)', () => {
-    // Because packESPhomePayload builds arrays in lock-step from a single loop,
-    // the invariant is guaranteed by construction for valid inputs.
-    // This test verifies that all array groups in the output have equal lengths,
-    // confirming the invariant holds.
+  it('test 7: array length invariant — all serialized arrays within each group have equal element counts', () => {
     const result = makeSolverResult({
       glyphs: [
-        { codepoint: '', x: 10, y: 20, sizePx: 58, r: 255, g: 0, b: 0 },
-        { codepoint: '', x: 70, y: 20, sizePx: 58, r: 0, g: 255, b: 0 },
-        { codepoint: '', x: 130, y: 20, sizePx: 58, r: 0, g: 0, b: 255 },
+        { codepoint: '', x: 10, y: 20, sizePx: 58, r: 255, g: 0, b: 0 },
+        { codepoint: '', x: 70, y: 20, sizePx: 58, r: 0, g: 255, b: 0 },
+        { codepoint: '', x: 130, y: 20, sizePx: 58, r: 0, g: 0, b: 255 },
       ],
       info: [
         { text: 'Alert A', x: 0, y: 160, r: 200, g: 200, b: 200 },
@@ -221,40 +232,40 @@ describe('packESPhomePayload', () => {
 
     const p = packESPhomePayload(result, baseProfile);
 
-    // Glyph group: all same length
-    const glyphLen = p.x.length;
-    expect(p.y).toHaveLength(glyphLen);
-    expect(p.r).toHaveLength(glyphLen);
-    expect(p.g).toHaveLength(glyphLen);
-    expect(p.b).toHaveLength(glyphLen);
-    expect(p.glyph).toHaveLength(glyphLen);
+    // Glyph group: all same element count
+    const glyphLen = parseInts(p.x).length;
+    expect(parseInts(p.y)).toHaveLength(glyphLen);
+    expect(parseInts(p.r)).toHaveLength(glyphLen);
+    expect(parseInts(p.g)).toHaveLength(glyphLen);
+    expect(parseInts(p.b)).toHaveLength(glyphLen);
+    expect(parseInts(p.glyph)).toHaveLength(glyphLen);
 
-    // Info glyph group: all same length
-    const infoLen = p.info_glyph.length;
-    expect(p.info_glyph_x).toHaveLength(infoLen);
-    expect(p.info_glyph_y).toHaveLength(infoLen);
-    expect(p.info_glyph_r).toHaveLength(infoLen);
-    expect(p.info_glyph_g).toHaveLength(infoLen);
-    expect(p.info_glyph_b).toHaveLength(infoLen);
+    // Info glyph group: all same element count
+    const infoLen = parseInts(p.info_glyph).length;
+    expect(parseInts(p.info_glyph_x)).toHaveLength(infoLen);
+    expect(parseInts(p.info_glyph_y)).toHaveLength(infoLen);
+    expect(parseInts(p.info_glyph_r)).toHaveLength(infoLen);
+    expect(parseInts(p.info_glyph_g)).toHaveLength(infoLen);
+    expect(parseInts(p.info_glyph_b)).toHaveLength(infoLen);
 
-    // Info text group: all same length
-    expect(p.info_text).toHaveLength(infoLen);
-    expect(p.info_text_x).toHaveLength(infoLen);
-    expect(p.info_text_y).toHaveLength(infoLen);
-    expect(p.info_text_r).toHaveLength(infoLen);
-    expect(p.info_text_g).toHaveLength(infoLen);
-    expect(p.info_text_b).toHaveLength(infoLen);
+    // Info text group: all same element count
+    expect(parseStrs(p.info_text, '|')).toHaveLength(infoLen);
+    expect(parseInts(p.info_text_x)).toHaveLength(infoLen);
+    expect(parseInts(p.info_text_y)).toHaveLength(infoLen);
+    expect(parseInts(p.info_text_r)).toHaveLength(infoLen);
+    expect(parseInts(p.info_text_g)).toHaveLength(infoLen);
+    expect(parseInts(p.info_text_b)).toHaveLength(infoLen);
 
     // Shape group: 2 zones + 1 severity bar = 3
-    const shapeLen = p.draw_shape.length;
+    const shapeLen = parseInts(p.draw_shape).length;
     expect(shapeLen).toBe(3);
-    expect(p.draw_shape_x).toHaveLength(shapeLen);
-    expect(p.draw_shape_y).toHaveLength(shapeLen);
-    expect(p.draw_shape_d2).toHaveLength(shapeLen);
-    expect(p.draw_shape_d3).toHaveLength(shapeLen);
-    expect(p.draw_shape_r).toHaveLength(shapeLen);
-    expect(p.draw_shape_g).toHaveLength(shapeLen);
-    expect(p.draw_shape_b).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_x)).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_y)).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_d2)).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_d3)).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_r)).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_g)).toHaveLength(shapeLen);
+    expect(parseInts(p.draw_shape_b)).toHaveLength(shapeLen);
   });
 
   it('test 8: error = true in SolverResult → ESPhomePayload.error === true', () => {
@@ -269,14 +280,11 @@ describe('packESPhomePayload', () => {
   });
 
   it('test 9: page-slice regression — 1-page result produces same output as pre-paging behavior', () => {
-    // For a single-page result (page_count = 1), the payload must reflect all glyphs
-    // exactly as if paging had never been introduced. This guards against any future
-    // paging slice logic accidentally slicing on page_count=1.
     const result = makeSolverResult({
       page_count: 1,
       glyphs: [
-        { codepoint: '', x: 20, y: 20, sizePx: 58, r: 100, g: 150, b: 200 },
-        { codepoint: '', x: 80, y: 20, sizePx: 58, r: 50, g: 75, b: 100 },
+        { codepoint: '', x: 20, y: 20, sizePx: 58, r: 100, g: 150, b: 200 },  // garage U+E714
+        { codepoint: '', x: 80, y: 20, sizePx: 58, r: 50, g: 75, b: 100 },   // door_open U+E77C
       ],
       info: [
         { text: 'Status OK', x: 0, y: 160, r: 128, g: 128, b: 128 },
@@ -285,21 +293,58 @@ describe('packESPhomePayload', () => {
 
     const payload = packESPhomePayload(result, baseProfile);
 
-    // All glyphs must appear in the output (no slicing)
-    expect(payload.glyph).toHaveLength(2);
-    expect(payload.glyph[0]).toBe('');
-    expect(payload.glyph[1]).toBe('');
+    // All glyphs must appear in the output (no slicing) — 2 comma-separated codepoints
+    const glyphs = parseInts(payload.glyph);
+    expect(glyphs).toHaveLength(2);
+    // Codepoints must be non-zero integers
+    expect(glyphs[0]).toBeGreaterThan(0);
+    expect(glyphs[1]).toBeGreaterThan(0);
 
-    // Info must appear in full
-    expect(payload.info_text).toHaveLength(1);
-    expect(payload.info_text[0]).toBe('Status OK');
+    // Info must appear in full as pipe-separated string
+    const infoTexts = parseStrs(payload.info_text, '|');
+    expect(infoTexts).toHaveLength(1);
+    expect(infoTexts[0]).toBe('Status OK');
 
     // Coordinate values must be preserved exactly
-    expect(payload.x[0]).toBe(20);
-    expect(payload.x[1]).toBe(80);
-    expect(payload.y[0]).toBe(20);
+    const xs = parseInts(payload.x);
+    const ys = parseInts(payload.y);
+    expect(xs[0]).toBe(20);
+    expect(xs[1]).toBe(80);
+    expect(ys[0]).toBe(20);
 
     expect(payload.error).toBe(false);
+  });
+
+  it('test 10: glyph codepoints are serialized as decimal integers, not raw characters', () => {
+    // U+E714 = garage icon (59156 decimal). Verifies the codepoint-to-int conversion path.
+    const garageChar = '';
+    const result = makeSolverResult({
+      glyphs: [
+        { codepoint: garageChar, x: 0, y: 0, sizePx: 58, r: 255, g: 255, b: 255 },
+      ],
+    });
+
+    const payload = packESPhomePayload(result, baseProfile);
+
+    const glyphs = parseInts(payload.glyph);
+    expect(glyphs).toHaveLength(1);
+    expect(glyphs[0]).toBe(garageChar.codePointAt(0));  // 0xE714 = 59156
+  });
+
+  it('test 11: info_text uses pipe separator to avoid conflicts with commas in text', () => {
+    const result = makeSolverResult({
+      info: [
+        { text: 'Temp: 23.5°C', x: 0, y: 160, r: 255, g: 255, b: 255 },
+        { text: 'CO2: 1,423 ppm', x: 0, y: 180, r: 255, g: 200, b: 200 },
+      ],
+    });
+
+    const payload = packESPhomePayload(result, baseProfile);
+
+    const texts = parseStrs(payload.info_text, '|');
+    expect(texts).toHaveLength(2);
+    expect(texts[0]).toBe('Temp: 23.5°C');
+    expect(texts[1]).toBe('CO2: 1,423 ppm');  // comma inside text must survive
   });
 
 });

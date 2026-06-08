@@ -12,6 +12,20 @@ export class DisplaySolverCardEditor extends LitElement {
     this._config = config;
   }
 
+  // In Safari, HA may assign `hass` as a plain own-property on the DOM element
+  // before the custom element is upgraded. When that happens the reactive setter
+  // below is never called, so _hass stays undefined and the entity picker never
+  // renders. connectedCallback runs after upgrade, so we check for and promote
+  // any pre-upgrade plain-property value here.
+  connectedCallback(): void {
+    super.connectedCallback();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const preUpgrade = (this as any)['hass'];
+    if (preUpgrade && !this._hass) {
+      this._hass = preUpgrade as Record<string, unknown>;
+    }
+  }
+
   get hass(): Record<string, unknown> | undefined {
     return this._hass;
   }

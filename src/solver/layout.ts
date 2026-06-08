@@ -97,6 +97,7 @@ export function computeGlyphCoordinates(
   layout: LayoutEntry,
   entries: ActiveEntry[],
   now?: Date,
+  hasInfo?: boolean,
 ): GlyphEntry[] {
   const date = now ?? new Date();
   const { xOffset, yOffset } = computeBurnInOffsets(profile, date);
@@ -110,11 +111,16 @@ export function computeGlyphCoordinates(
   }
   const cellSize = sizeEntry.px;
 
+  // When any entity has info, force single-column layout so each entity gets its
+  // own row with the glyph on the left and the info text rendered to its right.
+  // Multi-column glyph grids only apply to glyph-only (no-info) content.
+  const effectiveCols = hasInfo ? 1 : layout.icon.cols;
+
   const placeable = entries.filter(e => !e.indicatorOnly);
 
   return placeable.map((entry, i) => {
-    const col = i % layout.icon.cols;
-    const row = Math.floor(i / layout.icon.cols);
+    const col = i % effectiveCols;
+    const row = Math.floor(i / effectiveCols);
     const x = Math.floor(originX + col * cellSize);
     const y = Math.floor(originY + row * cellSize);
     const { r, g, b } = resolveColor(entry.color);

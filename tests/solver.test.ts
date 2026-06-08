@@ -1025,15 +1025,24 @@ describe('Bug regression — idle glyph emitted when all layouts have icon.min =
 });
 
 // ---------------------------------------------------------------------------
-// 22. Per-glyph info placement: info.y == glyph.y + glyph.sizePx + 14
+// 22. Info placement: text to the RIGHT of its glyph, vertically centred
 //
-// Info lines are no longer placed as a block below the entire icon grid.
-// Each info entry must be positioned directly below its own glyph so that
-// icon and label appear paired in the rendered output.
+// When any entity has showInfo=true the solver forces cols=1 so each entity
+// occupies its own row (glyph on the left). The info entry for that entity
+// is then positioned:
+//   x = glyph.x + glyph.sizePx + 8        (gap to the right of the icon)
+//   y = glyph.y + floor(sizePx/2) + 5     (baseline centred on the glyph)
+//
+// makeProfile uses medium=24px, margin=[4,4].  With hasInfo → cols=1:
+//   single entity  → col=0, row=0 → glyph (4, 4, 24px)
+//                    info.x = 4+24+8 = 36, info.y = 4+12+5 = 21
+//   two entities   → both in col=0 (same x=4), rows 0 and 1
+//                    glyph[0]=(4,4), glyph[1]=(4,28)
+//                    info[0].x = info[1].x = 36
 // ---------------------------------------------------------------------------
 
-describe('22 — Per-glyph info placement: info.y is relative to its own glyph', () => {
-  test('single entity: info.x == glyph.x and info.y == glyph.y + sizePx + 14', () => {
+describe('22 — Info placement: text right of glyph, vertically centred', () => {
+  test('single entity: info is to the right of the glyph, x = glyph.x + sizePx + 8', () => {
     const config: EntityConfig = {
       id: 'co2',
       entity_id: 'sensor.co2',
@@ -1044,9 +1053,6 @@ describe('22 — Per-glyph info placement: info.y is relative to its own glyph',
     const states: Record<string, StateObject> = {
       'sensor.co2': { state: '1500', attributes: {} },
     };
-    // makeProfile: medium size = 24px, margin=[4,4], cols=2
-    // glyph at col=0, row=0 → x=4, y=4, sizePx=24
-    // expected info.y = 4 + 24 + 14 = 42
     const result = solve(
       [config], states, DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
       makeProfile(), stubResolver, 0, FIXED_NOW,
@@ -1054,11 +1060,36 @@ describe('22 — Per-glyph info placement: info.y is relative to its own glyph',
 
     expect(result.glyphs).toHaveLength(1);
     expect(result.info).toHaveLength(1);
-    expect(result.info[0].x).toBe(result.glyphs[0].x);
-    expect(result.info[0].y).toBe(result.glyphs[0].y + result.glyphs[0].sizePx + 14);
+
+    const g = result.glyphs[0];
+    const inf = result.info[0];
+    // text is to the right of the glyph — NOT below it
+    expect(inf.x).toBe(g.x + g.sizePx + 8);
+    // baseline centred on glyph midline: glyph.y=4, sizePx=24 → 4+12+5=21
+    expect(inf.y).toBe(g.y + Math.floor(g.sizePx / 2) + 5);
   });
 
-  test('two entities: each info entry paired with its own glyph x', () => {
+  test('single entity: info.x is strictly greater than glyph.x', () => {
+    const config: EntityConfig = {
+      id: 'lock',
+      entity_id: 'binary_sensor.lock',
+      glyph: 'lock',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'alert', show_info: true } }],
+    };
+    const states: Record<string, StateObject> = {
+      'binary_sensor.lock': { state: 'on', attributes: {} },
+    };
+    const result = solve(
+      [config], states, DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
+      makeProfile(), stubResolver, 0, FIXED_NOW,
+    );
+
+    expect(result.glyphs).toHaveLength(1);
+    expect(result.info).toHaveLength(1);
+    expect(result.info[0].x).toBeGreaterThan(result.glyphs[0].x);
+  });
+
+  test('two entities: hasInfo forces cols=1 so both glyphs share the same x', () => {
     const makeInfoConfig = (id: string, entityId: string): EntityConfig => ({
       id,
       entity_id: entityId,
@@ -1078,13 +1109,33 @@ describe('22 — Per-glyph info placement: info.y is relative to its own glyph',
 
     expect(result.glyphs).toHaveLength(2);
     expect(result.info).toHaveLength(2);
-    // Each info entry must align horizontally with its glyph
-    expect(result.info[0].x).toBe(result.glyphs[0].x);
-    expect(result.info[1].x).toBe(result.glyphs[1].x);
-    // The two icons are in different columns (cols=2), so their x values differ
-    expect(result.glyphs[0].x).not.toBe(result.glyphs[1].x);
-    // Info y must be below each glyph independently
-    expect(result.info[0].y).toBe(result.glyphs[0].y + result.glyphs[0].sizePx + 14);
-    expect(result.info[1].y).toBe(result.glyphs[1].y + result.glyphs[1].sizePx + 14);
+
+    // hasInfo forces cols=1: both glyphs land in column 0, same x
+    expect(result.glyphs[0].x).toBe(result.glyphs[1].x);
+    // rows differ: row 1 starts one cellSize (24px) below row 0
+    expect(result.glyphs[1].y).toBe(result.glyphs[0].y + result.glyphs[0].sizePx);
+
+    // each info entry is to the right of its glyph
+    expect(result.info[0].x).toBe(result.glyphs[0].x + result.glyphs[0].sizePx + 8);
+    expect(result.info[1].x).toBe(result.glyphs[1].x + result.glyphs[1].sizePx + 8);
+    // vertically centred on its glyph
+    expect(result.info[0].y).toBe(result.glyphs[0].y + Math.floor(result.glyphs[0].sizePx / 2) + 5);
+    expect(result.info[1].y).toBe(result.glyphs[1].y + Math.floor(result.glyphs[1].sizePx / 2) + 5);
+  });
+
+  test('no info emitted when showInfo is false', () => {
+    const config: EntityConfig = {
+      id: 's',
+      entity_id: 'sensor.x',
+      glyph: 'warning',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'alert', show_info: false } }],
+    };
+    const states: Record<string, StateObject> = { 'sensor.x': { state: 'on', attributes: {} } };
+    const result = solve(
+      [config], states, DEFAULT_TIERS, DEFAULT_DEFAULTS, NO_GROUPS,
+      makeProfile(), stubResolver, 0, FIXED_NOW,
+    );
+    expect(result.glyphs).toHaveLength(1);
+    expect(result.info).toHaveLength(0);
   });
 });

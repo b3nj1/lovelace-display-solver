@@ -371,7 +371,9 @@ export function solve(
   const pageSlice = orderedGridEntries.slice(pageStart, pageEnd);
 
   // Stage 8: Coordinate computation
-  const glyphEntries = computeGlyphCoordinates(profile, layout, pageSlice, now);
+  // Pass hasInfo so computeGlyphCoordinates forces cols=1 when labels are present,
+  // giving each entity its own row with the glyph on the left.
+  const glyphEntries = computeGlyphCoordinates(profile, layout, pageSlice, now, hasInfo);
 
   // Fill in codepoints
   const glyphs: GlyphEntry[] = glyphEntries.map((ge, i) => ({
@@ -379,14 +381,16 @@ export function solve(
     codepoint: codepointMap.get(pageSlice[i].glyphName) ?? '',
   }));
 
-  // Stage 9: Info lines — each label is paired with its own icon.
-  // Text baseline is placed INFO_FONT_PX + INFO_GAP_PX below the icon's visual
-  // bottom (which canvas drawGlyphs puts at glyph.y + glyph.sizePx).
-  // For multi-row grids the cell height does not include label space, so labels
-  // of row N may overlap row N+1 icons when info is enabled — acceptable for the
-  // common 1–2 entity case; a future cellHeight-with-label change can fix that.
-  const INFO_FONT_PX = 12;
-  const INFO_GAP_PX = 2;
+  // Stage 9: Info lines — text is placed to the RIGHT of its glyph, vertically
+  // centred within the glyph's cell.
+  //
+  // x = glyph.x + sizePx + INFO_SIDE_GAP   (glyph width + gap)
+  // y = glyph.y + sizePx/2 + INFO_CAP_HALF  (baseline for visually-centred 12px text)
+  //
+  // canvas fillText uses the alphabetic baseline. For 12px monospace the cap height
+  // is ~10px, so adding 5px (half cap height) centres the text on the glyph midline.
+  const INFO_SIDE_GAP = 8;
+  const INFO_CAP_HALF = 5;
   const info: InfoEntry[] = [];
   for (let i = 0; i < pageSlice.length; i++) {
     const entry = pageSlice[i];
@@ -396,8 +400,8 @@ export function solve(
     const { r, g, b } = resolveColor(entry.color);
     info.push({
       text,
-      x: glyph.x,
-      y: glyph.y + glyph.sizePx + INFO_FONT_PX + INFO_GAP_PX,
+      x: glyph.x + glyph.sizePx + INFO_SIDE_GAP,
+      y: glyph.y + Math.floor(glyph.sizePx / 2) + INFO_CAP_HALF,
       r, g, b,
     });
   }

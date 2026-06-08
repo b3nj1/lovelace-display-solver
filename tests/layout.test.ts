@@ -450,6 +450,70 @@ describe('selectLayout: far/near/close choose different layouts', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 15b. computeGlyphCoordinates: hasInfo=true forces cols=1 (single-column row layout)
+//
+// When any entity has info, the solver passes hasInfo=true so that each entity
+// gets its own row. This is the structural prerequisite for placing info text
+// to the right of its glyph rather than below the icon grid.
+// ---------------------------------------------------------------------------
+
+describe('15b — computeGlyphCoordinates: hasInfo=true forces single-column layout', () => {
+  test('two entries with hasInfo=true: both in col 0, different rows', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 2 }, // cols=2 normally
+      info: { min: 0, max: 2 },
+    };
+    const profile = makeProfile('near', { layouts: [layout] });
+    const entries = [
+      makeEntry({ color: 'red' }),
+      makeEntry({ color: 'blue', entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
+    ];
+    // hasInfo=true → effectiveCols=1 → both entries in col 0
+    const result = computeGlyphCoordinates(profile, layout, entries, undefined, true);
+    expect(result).toHaveLength(2);
+    expect(result[0].x).toBe(result[1].x);    // same column
+    expect(result[0].y).not.toBe(result[1].y); // different rows
+  });
+
+  test('two entries with hasInfo=false: different columns (normal grid)', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 2 },
+      info: { min: 0, max: 2 },
+    };
+    const profile = makeProfile('near', { layouts: [layout] });
+    const entries = [
+      makeEntry({ color: 'red' }),
+      makeEntry({ color: 'blue', entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
+    ];
+    // hasInfo=false (default) → effectiveCols=2 → entries in col 0 and col 1
+    const result = computeGlyphCoordinates(profile, layout, entries, undefined, false);
+    expect(result).toHaveLength(2);
+    expect(result[0].x).not.toBe(result[1].x); // different columns
+    expect(result[0].y).toBe(result[1].y);      // same row
+  });
+
+  test('four entries with hasInfo=true: all in col 0, y increases one cellSize per row', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 4 }, // cols=4 normally
+      info: { min: 0, max: 2 },
+    };
+    // margin_px=[0,0] so x=0 and y increments are exactly cellSize
+    const profile = makeProfile('near', { margin_px: [0, 0], layouts: [layout] });
+    const entries = [0, 1, 2, 3].map(i =>
+      makeEntry({ entityConfig: { id: `e${i}`, entity_id: `sensor.${i}` } })
+    );
+    const result = computeGlyphCoordinates(profile, layout, entries, undefined, true);
+    expect(result).toHaveLength(4);
+    for (const g of result) expect(g.x).toBe(0); // all in col 0
+    const cellSize = profile.glyph_sizes['medium'].px; // 32px from makeProfile
+    expect(result[0].y).toBe(0);
+    expect(result[1].y).toBe(cellSize);
+    expect(result[2].y).toBe(cellSize * 2);
+    expect(result[3].y).toBe(cellSize * 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 16. computeGlyphCoordinates: Math.floor applied to coordinates
 // ---------------------------------------------------------------------------
 

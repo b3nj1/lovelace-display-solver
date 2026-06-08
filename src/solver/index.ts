@@ -371,9 +371,7 @@ export function solve(
   const pageSlice = orderedGridEntries.slice(pageStart, pageEnd);
 
   // Stage 8: Coordinate computation
-  // Pass hasInfo so computeGlyphCoordinates forces cols=1 when labels are present,
-  // giving each entity its own row with the glyph on the left.
-  const glyphEntries = computeGlyphCoordinates(profile, layout, pageSlice, now, hasInfo);
+  const glyphEntries = computeGlyphCoordinates(profile, layout, pageSlice, now);
 
   // Fill in codepoints
   const glyphs: GlyphEntry[] = glyphEntries.map((ge, i) => ({

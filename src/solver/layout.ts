@@ -98,7 +98,6 @@ export function computeGlyphCoordinates(
   layout: LayoutEntry,
   entries: ActiveEntry[],
   now?: Date,
-  hasInfo?: boolean,
 ): GlyphEntry[] {
   const date = now ?? new Date();
   const { xOffset, yOffset } = computeBurnInOffsets(profile, date);
@@ -124,16 +123,38 @@ export function computeGlyphCoordinates(
   const scale = isSingleSize ? constraints.size_scale : 1.0;
   const cellSize = Math.max(8, Math.round(declaredCellSize * scale));
 
-  // When any entity has info, force single-column layout so each entity gets its
-  // own row with the glyph on the left and the info text rendered to its right.
-  // Multi-column glyph grids only apply to glyph-only (no-info) content.
-  const effectiveCols = hasInfo ? 1 : layout.icon.cols;
-
+  const cols = layout.icon.cols;
   const placeable = entries.filter(e => !e.indicatorOnly);
 
-  return placeable.map((entry, i) => {
-    const col = i % effectiveCols;
-    const row = Math.floor(i / effectiveCols);
+  // Per-entry placement: entries with showInfo always occupy their own row so
+  // info text can be rendered to the right. Entries without showInfo pack
+  // across columns normally. A showInfo entry mid-row bumps to the next row.
+  let currentRow = 0;
+  let currentCol = 0;
+
+  return placeable.map((entry) => {
+    let row: number;
+    let col: number;
+
+    if (entry.showInfo) {
+      if (currentCol > 0) {
+        currentRow += 1;
+        currentCol = 0;
+      }
+      row = currentRow;
+      col = 0;
+      currentRow += 1;
+      currentCol = 0;
+    } else {
+      row = currentRow;
+      col = currentCol;
+      currentCol += 1;
+      if (currentCol >= cols) {
+        currentCol = 0;
+        currentRow += 1;
+      }
+    }
+
     const x = Math.floor(originX + col * cellSize);
     const y = Math.floor(originY + row * cellSize);
     const { r, g, b } = resolveColor(entry.color);

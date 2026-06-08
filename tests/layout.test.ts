@@ -238,6 +238,51 @@ describe('9 — computeGlyphCoordinates: 2-column layout row grouping', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 9b. computeGlyphCoordinates: mixed showInfo — non-info entries pack, info entries own a row
+// ---------------------------------------------------------------------------
+
+describe('9b — computeGlyphCoordinates: mixed showInfo packing', () => {
+  test('two non-info entries share row 0; one info entry gets its own row 1', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 3 },
+      info: { min: 0, max: 2 },
+    };
+    const profile = makeProfile('near', { layouts: [layout] });
+    const entries = [
+      makeEntry({ showInfo: false }),
+      makeEntry({ showInfo: false, entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
+      makeEntry({ showInfo: true,  entityConfig: { id: 'e3', entity_id: 'sensor.c' } }),
+    ];
+    const result = computeGlyphCoordinates(profile, layout, entries);
+    expect(result).toHaveLength(3);
+    // entries 0 and 1 are on row 0
+    expect(result[0].y).toBe(result[1].y);
+    // entry 2 is on row 1 (its own row)
+    expect(result[2].y).not.toBe(result[0].y);
+    // entry 0 is at col 0, entry 1 at col 1 — different x
+    expect(result[0].x).not.toBe(result[1].x);
+  });
+
+  test('info entry mid-sequence bumps trailing non-info to a new row', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 3 },
+      info: { min: 0, max: 2 },
+    };
+    const profile = makeProfile('near', { layouts: [layout] });
+    const entries = [
+      makeEntry({ showInfo: true }),
+      makeEntry({ showInfo: false, entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
+      makeEntry({ showInfo: false, entityConfig: { id: 'e3', entity_id: 'sensor.c' } }),
+    ];
+    const result = computeGlyphCoordinates(profile, layout, entries);
+    // entry 0 on row 0; entries 1+2 pack together on row 1
+    expect(result[1].y).toBe(result[2].y);
+    expect(result[0].y).not.toBe(result[1].y);
+    expect(result[1].x).not.toBe(result[2].x);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 10. computeGlyphCoordinates: indicatorOnly entry not included in output
 // ---------------------------------------------------------------------------
 
@@ -471,61 +516,57 @@ describe('selectLayout: far/near/close choose different layouts', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 15b. computeGlyphCoordinates: hasInfo=true forces cols=1 (single-column row layout)
+// 15b. computeGlyphCoordinates: showInfo=true entries each occupy their own row
 //
-// When any entity has info, the solver passes hasInfo=true so that each entity
-// gets its own row. This is the structural prerequisite for placing info text
-// to the right of its glyph rather than below the icon grid.
+// An entry with showInfo=true always starts on a new row (bumping col if needed)
+// and consumes the full row so info text can render to its right.
 // ---------------------------------------------------------------------------
 
-describe('15b — computeGlyphCoordinates: hasInfo=true forces single-column layout', () => {
-  test('two entries with hasInfo=true: both in col 0, different rows', () => {
-    const layout: LayoutEntry = {
-      icon: { min: 1, max: 8, size: 'medium', cols: 2 }, // cols=2 normally
-      info: { min: 0, max: 2 },
-    };
-    const profile = makeProfile('near', { layouts: [layout] });
-    const entries = [
-      makeEntry({ color: 'red' }),
-      makeEntry({ color: 'blue', entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
-    ];
-    // hasInfo=true → effectiveCols=1 → both entries in col 0
-    const result = computeGlyphCoordinates(profile, layout, entries, undefined, true);
-    expect(result).toHaveLength(2);
-    expect(result[0].x).toBe(result[1].x);    // same column
-    expect(result[0].y).not.toBe(result[1].y); // different rows
-  });
-
-  test('two entries with hasInfo=false: different columns (normal grid)', () => {
+describe('15b — computeGlyphCoordinates: showInfo=true entries own their row', () => {
+  test('two showInfo entries: both in col 0, different rows', () => {
     const layout: LayoutEntry = {
       icon: { min: 1, max: 8, size: 'medium', cols: 2 },
       info: { min: 0, max: 2 },
     };
     const profile = makeProfile('near', { layouts: [layout] });
     const entries = [
-      makeEntry({ color: 'red' }),
-      makeEntry({ color: 'blue', entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
+      makeEntry({ showInfo: true, color: 'red' }),
+      makeEntry({ showInfo: true, color: 'blue', entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
     ];
-    // hasInfo=false (default) → effectiveCols=2 → entries in col 0 and col 1
-    const result = computeGlyphCoordinates(profile, layout, entries, undefined, false);
+    const result = computeGlyphCoordinates(profile, layout, entries);
+    expect(result).toHaveLength(2);
+    expect(result[0].x).toBe(result[1].x);    // same column (col 0)
+    expect(result[0].y).not.toBe(result[1].y); // different rows
+  });
+
+  test('two showInfo=false entries: different columns (normal grid packing)', () => {
+    const layout: LayoutEntry = {
+      icon: { min: 1, max: 8, size: 'medium', cols: 2 },
+      info: { min: 0, max: 2 },
+    };
+    const profile = makeProfile('near', { layouts: [layout] });
+    const entries = [
+      makeEntry({ showInfo: false, color: 'red' }),
+      makeEntry({ showInfo: false, color: 'blue', entityConfig: { id: 'e2', entity_id: 'sensor.b' } }),
+    ];
+    const result = computeGlyphCoordinates(profile, layout, entries);
     expect(result).toHaveLength(2);
     expect(result[0].x).not.toBe(result[1].x); // different columns
     expect(result[0].y).toBe(result[1].y);      // same row
   });
 
-  test('four entries with hasInfo=true: all in col 0, y increases one cellSize per row', () => {
+  test('four showInfo entries: all in col 0, y increases one cellSize per row', () => {
     const layout: LayoutEntry = {
-      icon: { min: 1, max: 8, size: 'medium', cols: 4 }, // cols=4 normally
+      icon: { min: 1, max: 8, size: 'medium', cols: 4 },
       info: { min: 0, max: 2 },
     };
-    // margin_px=[0,0] so x=0 and y increments are exactly cellSize
     const profile = makeProfile('near', { margin_px: [0, 0], layouts: [layout] });
     const entries = [0, 1, 2, 3].map(i =>
-      makeEntry({ entityConfig: { id: `e${i}`, entity_id: `sensor.${i}` } })
+      makeEntry({ showInfo: true, entityConfig: { id: `e${i}`, entity_id: `sensor.${i}` } })
     );
-    const result = computeGlyphCoordinates(profile, layout, entries, undefined, true);
+    const result = computeGlyphCoordinates(profile, layout, entries);
     expect(result).toHaveLength(4);
-    for (const g of result) expect(g.x).toBe(0); // all in col 0
+    for (const g of result) expect(g.x).toBe(0);
     const cellSize = profile.glyph_sizes['medium'].px; // 32px from makeProfile
     expect(result[0].y).toBe(0);
     expect(result[1].y).toBe(cellSize);

@@ -7,6 +7,14 @@ import type {
   ThresholdStep,
   WhenCondition,
 } from './types';
+import { entityDefaultGlyph } from '../utils/glyph';
+
+function resolveEntityIconName(entityId: string, stateObj: StateObject | undefined): string {
+  const attrIcon = stateObj?.attributes?.icon as string | undefined;
+  if (attrIcon) return attrIcon;
+  const deviceClass = stateObj?.attributes?.device_class as string | undefined;
+  return entityDefaultGlyph(entityId, deviceClass);
+}
 
 // Parse "HH:MM" to minutes since midnight
 function toMinutes(hhmm: string): number {
@@ -161,7 +169,7 @@ export function evaluateEntity(
       // unavailable_action === 'show': return minimal entry at least-urgent tier
       const resolvedGlyph =
         config.glyph === 'entity'
-          ? (stateObj?.attributes?.icon as string | undefined) ?? ''
+          ? resolveEntityIconName(config.entity_id, stateObj)
           : config.glyph ?? '';
       return {
         entityConfig: config,
@@ -181,7 +189,7 @@ export function evaluateEntity(
   // Pre-resolve "entity" glyph
   const resolvedGlyph =
     config.glyph === 'entity'
-      ? (stateObj?.attributes?.icon as string | undefined) ?? ''
+      ? resolveEntityIconName(config.entity_id, stateObj)
       : config.glyph ?? '';
 
   if (config.rules) {

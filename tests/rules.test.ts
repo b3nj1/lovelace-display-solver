@@ -135,24 +135,83 @@ describe('5 — glyph: "entity" resolved from attributes.icon', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. glyph: "entity" with no icon attribute → glyphName is ""
+// 6. glyph: "entity" with no icon attribute → domain default glyph
 // ---------------------------------------------------------------------------
 
 describe('6 — glyph: "entity" with no icon attribute', () => {
-  const config: EntityConfig = {
-    id: 'fan2',
-    entity_id: 'fan.living',
-    glyph: 'entity',
-    rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'info' } }],
-  };
-
-  test('entity has no icon attribute → glyphName is ""', () => {
+  test('fan entity uses domain default glyph when no icon attribute', () => {
+    const config: EntityConfig = {
+      id: 'fan2',
+      entity_id: 'fan.living',
+      glyph: 'entity',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'info' } }],
+    };
     const states: Record<string, StateObject> = {
       'fan.living': { state: 'on', attributes: {} },
     };
     const result = evaluateEntity(config, states, DEFAULT_TIERS, DEFAULT_DEFAULTS);
     expect(result).not.toBeNull();
-    expect(result!.glyphName).toBe('');
+    expect(result!.glyphName).toBe('mode_fan');
+  });
+
+  test('light entity uses lightbulb when no icon attribute', () => {
+    const config: EntityConfig = {
+      id: 'light1',
+      entity_id: 'light.bedroom',
+      glyph: 'entity',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'info' } }],
+    };
+    const states: Record<string, StateObject> = {
+      'light.bedroom': { state: 'on', attributes: {} },
+    };
+    const result = evaluateEntity(config, states, DEFAULT_TIERS, DEFAULT_DEFAULTS);
+    expect(result).not.toBeNull();
+    expect(result!.glyphName).toBe('lightbulb');
+  });
+
+  test('cover garage entity uses garage glyph via device_class', () => {
+    const config: EntityConfig = {
+      id: 'cover1',
+      entity_id: 'cover.garage_door',
+      glyph: 'entity',
+      rules: [{ when: { state: 'open' }, then: { action: 'show', tier: 'info' } }],
+    };
+    const states: Record<string, StateObject> = {
+      'cover.garage_door': { state: 'open', attributes: { device_class: 'garage' } },
+    };
+    const result = evaluateEntity(config, states, DEFAULT_TIERS, DEFAULT_DEFAULTS);
+    expect(result).not.toBeNull();
+    expect(result!.glyphName).toBe('garage');
+  });
+
+  test('binary_sensor motion uses motion_sensor_active glyph', () => {
+    const config: EntityConfig = {
+      id: 'motion1',
+      entity_id: 'binary_sensor.hallway',
+      glyph: 'entity',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'warn' } }],
+    };
+    const states: Record<string, StateObject> = {
+      'binary_sensor.hallway': { state: 'on', attributes: { device_class: 'motion' } },
+    };
+    const result = evaluateEntity(config, states, DEFAULT_TIERS, DEFAULT_DEFAULTS);
+    expect(result).not.toBeNull();
+    expect(result!.glyphName).toBe('motion_sensor_active');
+  });
+
+  test('explicit icon attribute takes priority over domain default', () => {
+    const config: EntityConfig = {
+      id: 'light2',
+      entity_id: 'light.kitchen',
+      glyph: 'entity',
+      rules: [{ when: { state: 'on' }, then: { action: 'show', tier: 'info' } }],
+    };
+    const states: Record<string, StateObject> = {
+      'light.kitchen': { state: 'on', attributes: { icon: 'mdi:ceiling-light' } },
+    };
+    const result = evaluateEntity(config, states, DEFAULT_TIERS, DEFAULT_DEFAULTS);
+    expect(result).not.toBeNull();
+    expect(result!.glyphName).toBe('mdi:ceiling-light');
   });
 });
 

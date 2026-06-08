@@ -96,7 +96,41 @@ export const MDI_TO_MSS: Record<string, string> = {
   'mdi:power':          'power_settings_new',
   'mdi:shield-lock':    'lock',
   'mdi:shield-home':    'home',
-  'mdi:lightbulb-on':   'lightbulb',
+  'mdi:lightbulb-on':           'lightbulb',
+  'mdi:lightbulb-off':          'lightbulb',
+  'mdi:lightbulb-group':        'lightbulb',
+  'mdi:lightbulb-group-off':    'lightbulb',
+  'mdi:ceiling-light':          'lightbulb',
+  'mdi:ceiling-light-multiple': 'lightbulb',
+  'mdi:floor-lamp':             'lightbulb',
+  'mdi:desk-lamp':              'lightbulb',
+  'mdi:lamp':                   'lightbulb',
+  'mdi:string-lights':          'lightbulb',
+  'mdi:led-strip':              'lightbulb',
+  'mdi:led-strip-variant':      'lightbulb',
+  'mdi:led-on':                 'lightbulb',
+  // Cover icons
+  'mdi:blinds':                 'window',
+  'mdi:blinds-open':            'window',
+  'mdi:curtains':               'window',
+  'mdi:curtains-closed':        'window',
+  'mdi:window-closed':          'window',
+  'mdi:window-closed-variant':  'window',
+  'mdi:window-open-variant':    'window',
+  'mdi:roller-shade':           'window',
+  'mdi:roller-shade-closed':    'window',
+  'mdi:window-shutter':         'window',
+  'mdi:window-shutter-open':    'window',
+  'mdi:gate':                   'garage',
+  'mdi:gate-open':              'garage',
+  // Binary sensor state-variant icons
+  'mdi:door-closed':            'door_open',
+  'mdi:lock-open':              'lock',
+  'mdi:lock-open-variant':      'lock',
+  'mdi:motion-sensor-off':      'motion_sensor_active',
+  'mdi:smoke-detector-off':     'detector_smoke',
+  'mdi:smoke-detector-variant': 'detector_smoke',
+  'mdi:water-off':              'water_drop',
 };
 
 // Source: https://fonts.google.com/icons?icon.style=Sharp
@@ -186,6 +220,77 @@ export const MSS_CODEPOINTS: Record<string, string> = {
   shield:              '',
   key:                 '',
 };
+
+/**
+ * Returns the default MSS glyph name for an entity when no explicit icon is set
+ * in attributes. Uses the domain extracted from entity_id and, for domains with
+ * device classes, the device_class attribute.
+ */
+export function entityDefaultGlyph(entityId: string, deviceClass?: string): string {
+  const domain = entityId.split('.')[0];
+  switch (domain) {
+    case 'light':
+      return 'lightbulb';
+    case 'cover':
+      switch (deviceClass) {
+        case 'garage': return 'garage';
+        case 'gate':   return 'garage';
+        case 'door':   return 'door_open';
+        default:       return 'window';
+      }
+    case 'binary_sensor':
+      switch (deviceClass) {
+        case 'battery':         return 'battery_full';
+        case 'carbon_monoxide': return 'detector_smoke';
+        case 'cold':            return 'ac_unit';
+        case 'connectivity':    return 'wifi';
+        case 'door':            return 'door_open';
+        case 'garage_door':     return 'garage';
+        case 'gas':             return 'detector_smoke';
+        case 'heat':            return 'local_fire_department';
+        case 'light':           return 'sunny';
+        case 'lock':            return 'lock';
+        case 'moisture':        return 'water_drop';
+        case 'motion':          return 'motion_sensor_active';
+        case 'moving':          return 'motion_sensor_active';
+        case 'occupancy':       return 'home';
+        case 'opening':         return 'door_open';
+        case 'plug':            return 'power';
+        case 'presence':        return 'home';
+        case 'problem':         return 'error';
+        case 'running':         return 'play_arrow';
+        case 'safety':          return 'shield';
+        case 'smoke':           return 'detector_smoke';
+        case 'sound':           return 'volume_up';
+        case 'tamper':          return 'shield';
+        case 'window':          return 'window';
+        default:                return 'info';
+      }
+    case 'switch':
+      return 'power';
+    case 'lock':
+      return 'lock';
+    case 'alarm_control_panel':
+      return 'security';
+    case 'climate':
+      return 'thermostat';
+    case 'media_player':
+      return 'tv';
+    case 'fan':
+      return 'mode_fan';
+    case 'sensor':
+      switch (deviceClass) {
+        case 'temperature': return 'thermostat';
+        case 'humidity':    return 'water_drop';
+        case 'co2':         return 'co2';
+        case 'pm25':
+        case 'pm10':        return 'air';
+        default:            return 'info';
+      }
+    default:
+      return 'info';
+  }
+}
 
 /**
  * Resolve a glyph name to a Material Symbols Sharp ligature string for canvas rendering.
